@@ -1,7 +1,7 @@
 {
   "$schema": "https://wails.io/schemas/config.v2.json",
   "name": "wails-proj",
-  "outputfilename": "wails-proj",
+  "outputfilename": "视频转码·H264·MP4",
   "frontend:install": "npm install",
   "frontend:build": "npm run build",
   "frontend:dev:watcher": "npm run dev",
