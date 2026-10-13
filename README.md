@@ -1,7 +1,7 @@
 # 视频转码（Wails + FFmpeg）
 
 用 Wails v2 + Go 封装的 FFmpeg 转码小工具：选择视频文件 → 显示原始编码信息 → 选择 CRF（以及
-Profile / Level）→ 转码为 H.264 / MP4（默认 `main` profile、`level 4.0`、`yuv420p`、`+faststart`）。
+Profile / Level）→ 转码为 H.264 / MP4（默认 `high` profile、`level 4.1`、`yuv420p`、`+faststart`）。
 
 ![界面预览](docs/ui-preview.png)
 
@@ -13,8 +13,8 @@ Profile / Level）→ 转码为 H.264 / MP4（默认 `main` profile、`level 4.0
 FILE_NAME="xxx.mp4"
 ffmpeg -i "$FILE_NAME" \
   -c:v libx264 \
-  -profile:v main \
-  -level 4.0 \
+  -profile:v high \
+  -level 4.1 \
   -pix_fmt yuv420p \
   -crf 18 \
   -c:a copy \
@@ -31,7 +31,7 @@ ffmpeg -i "$FILE_NAME" \
 | 音频与 MP4 不兼容（如 Opus、Vorbis、PCM）时自动改为 `-c:a aac -b:a 128k` | `-c:a copy` 会直接失败                             |
 | 含图形字幕（PGS / VOBSUB）时追加 `-sn`                                   | MP4 无法承载图形字幕，否则 ffmpeg 报错             |
 | 输出到「源文件目录 / output /（原文件名）」                              | 对应命令里的 `output/$FILE_NAME`                   |
-| 可改选 `-profile:v` / `-level`（默认不变）                               | 4K 等素材用默认的 level 4.0 会直接失败，需要能调整 |
+| 可改选 `-profile:v` / `-level`（默认不变）                               | 4K 等素材用默认的 level 4.1 会直接失败，需要能调整 |
 
 ## 界面功能
 
@@ -41,7 +41,7 @@ ffmpeg -i "$FILE_NAME" \
   声道 / 码率 / 采样格式）与音视频轨数。
 - **风险提示**：音频与 MP4 不兼容、分辨率/帧率超出所选 level 上限、奇数边长、图形字幕等情况会给出说明。
 - **CRF 选择**：18（高画质）、**23（默认）**、28（小体积）。
-- **Profile / Level（高级）**：默认 `main` + `4.0`（与参考命令一致），可改为 `baseline` / `high` 以及
+- **Profile / Level（高级）**：默认 `high` + `4.1`，可改为 `main` 以及
   `3.1`~`5.2` 各档，或选择「自动」不传 `-level` 交给 x264 决定。选中文件后会按分辨率与帧率算出所需
   的最低等级：若所选档位不够，会提示并给出一键应用的按钮。
 - **音频选项**：默认 `-c:a copy`，可改为 AAC 128k。
@@ -57,16 +57,16 @@ ffmpeg -i "$FILE_NAME" \
 | Level | 典型能力       | 说明                           |
 | ----- | -------------- | ------------------------------ |
 | 3.1   | 720p30         | 兼容性最好                     |
-| 4.0   | 1080p30        | **默认**，与参考命令一致       |
-| 4.1   | 1080p30 高码率 | 分辨率上限同 4.0，码率上限更高 |
+| 4.0   | 1080p30        | 分辨率上限同 4.1               |
+| 4.1   | 1080p30 高码率 | **默认**，码率上限更高         |
 | 4.2   | 1080p60        | 1080p 高帧率                   |
 | 5.0   | 1440p30        |                                |
 | 5.1   | 4K30           | 4K 素材的最低选择              |
 | 5.2   | 4K60           |                                |
 | 自动  | 由编码器决定   | 不写 `-level`，x264 自行标注   |
 
-`-profile:v` 影响同画质下的体积：`baseline`（最兼容、体积最大）、`main`（默认）、`high`（开 CABAC /
-8x8 变换，体积更小，但少数老设备不支持）。三者都与强制的 `yuv420p` 8bit 兼容，因此可以安全地开放给
+`-profile:v` 影响同画质下的体积：`main`（兼容性与体积平衡）、`high`（默认，开 CABAC /
+8x8 变换，体积更小，但少数老设备不支持）。两者都与强制的 `yuv420p` 8bit 兼容，因此可以安全地开放给
 用户选择；不兼容的档位（如需要 10bit 的 `high10`）不会出现在列表里，非法取值也会被后端收敛回默认档。
 
 ## 环境要求

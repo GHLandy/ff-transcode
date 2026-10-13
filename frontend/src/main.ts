@@ -15,8 +15,8 @@ import type {
 
 const DEFAULT_CRF = 23;
 /** 与 Go 侧默认档位保持一致，取不到预设时作为兜底。 */
-const DEFAULT_PROFILE = "main";
-const DEFAULT_LEVEL = "4.0";
+const DEFAULT_PROFILE = "high";
+const DEFAULT_LEVEL = "4.1";
 const AUTO_LEVEL = "auto";
 const LOG_LIMIT = 300;
 
@@ -100,7 +100,7 @@ document.getElementById("app")!.innerHTML = `
 <div class="shell">
     <header class="hero">
         <h1>视频转码<span class="tag">H.264 / MP4</span></h1>
-        <p class="hero-sub">libx264 · yuv420p · +faststart · 默认 main profile / level 4.0</p>
+        <p class="hero-sub">libx264 · yuv420p · +faststart · 默认 high profile / level 4.1</p>
     </header>
 
     <div id="toolBanner" class="banner" hidden></div>

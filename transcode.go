@@ -22,8 +22,8 @@ const (
 	// defaultCRF 是界面默认选中的 CRF；18 / 23 / 28 为可选档位。
 	defaultCRF = 23
 	// defaultProfile / defaultLevel 与参考命令保持一致。
-	defaultProfile = "main"
-	defaultLevel   = "4.0"
+	defaultProfile = "high"
+	defaultLevel   = "4.1"
 	// autoLevel 表示不传 -level，由编码器按分辨率与帧率自行决定。
 	autoLevel = "auto"
 	// logTailLimit 是内存与界面上保留的 ffmpeg 日志行数。
@@ -43,7 +43,7 @@ var (
 	// mp4AudioOK 是可以直接 copy 进 MP4 的音频编码。
 	mp4AudioOK = map[string]bool{"aac": true, "mp3": true, "ac3": true, "eac3": true, "alac": true}
 	// allowedProfiles 是与 yuv420p 8bit 兼容、可以安全放给用户选择的 H.264 profile。
-	allowedProfiles = []string{"baseline", "main", "high"}
+	allowedProfiles = []string{"main", "high"}
 )
 
 // TranscodeOptions 是界面提交的一次转码选项。
@@ -52,7 +52,7 @@ type TranscodeOptions struct {
 	OutputDir  string `json:"outputDir"`
 	CRF        int    `json:"crf"`
 	AudioMode  string `json:"audioMode"` // copy | aac
-	Profile    string `json:"profile"`   // baseline | main | high
+	Profile    string `json:"profile"`   // main | high
 	Level      string `json:"level"`     // auto | 3.1 | 4.0 | ...
 }
 
@@ -98,9 +98,8 @@ func (a *App) GetPresets() TranscodePresets {
 			{Value: "28", Label: "28", Hint: "小体积 · 画质下降"},
 		},
 		Profiles: []OptionItem{
-			{Value: "baseline", Label: "baseline", Hint: "兼容最老的设备，同画质体积明显更大"},
-			{Value: "main", Label: "main（默认）", Hint: "兼容性与体积的平衡，参考命令使用的档位"},
-			{Value: "high", Label: "high", Hint: "开启 CABAC / 8x8 变换，同画质体积更小"},
+			{Value: "main", Label: "main", Hint: "兼容性与体积的平衡，老设备更友好"},
+			{Value: "high", Label: "high（默认）", Hint: "开启 CABAC / 8x8 变换，同画质体积更小"},
 		},
 		Levels: []OptionItem{
 			{Value: autoLevel, Label: "自动（推荐）", Hint: "不指定 -level，由 x264 按分辨率与帧率决定"},
@@ -407,8 +406,6 @@ func buildPlan(opts TranscodeOptions) (*CommandPlan, error) {
 // profileHint 返回 profile 的说明，用于界面提示。
 func profileHint(profile string) string {
 	switch profile {
-	case "baseline":
-		return "兼容性最好（无 CABAC / B 帧），同画质体积明显更大"
 	case "high":
 		return "开启 CABAC 与 8x8 变换，同画质体积更小，但部分老设备不支持"
 	case "main":
