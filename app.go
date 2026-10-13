@@ -65,11 +65,11 @@ func (a *App) CheckTools() ToolStatus {
 
 	switch {
 	case ffmpegPath == "" && ffprobePath == "":
-		status.Message = "未找到 ffmpeg 与 ffprobe。请安装 FFmpeg 并把 bin 目录加入 PATH，或设置 FFMPEG_PATH / FFPROBE_PATH 环境变量。"
+		status.Message = "未找到 ffmpeg 与 ffprobe。请安装 FFmpeg 并把 bin 目录加入 PATH。"
 	case ffmpegPath == "":
-		status.Message = "未找到 ffmpeg，无法转码；请设置 FFMPEG_PATH 指向 ffmpeg.exe。"
+		status.Message = "未找到 ffmpeg，无法转码；请把 ffmpeg 放入 PATH 或随应用 bin 目录。"
 	case ffprobePath == "":
-		status.Message = "未找到 ffprobe，无法读取视频编码信息；请设置 FFPROBE_PATH。"
+		status.Message = "未找到 ffprobe，无法读取视频编码信息；请把 ffprobe 放入 PATH 或随应用 bin 目录。"
 	default:
 		status.Available = true
 		status.Message = "FFmpeg 已就绪"

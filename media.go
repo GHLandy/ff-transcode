@@ -119,7 +119,7 @@ type ffprobeStream struct {
 func probeMedia(ctx context.Context, path string) (*MediaInfo, error) {
 	ffprobe := locateTool("ffprobe")
 	if ffprobe == "" {
-		return nil, errors.New("未找到 ffprobe，请安装 FFmpeg 并将 bin 目录加入 PATH，或设置 FFPROBE_PATH 环境变量")
+		return nil, errors.New("未找到 ffprobe，请安装 FFmpeg 并将 bin 目录加入 PATH")
 	}
 
 	cctx, cancel := context.WithTimeout(ctx, 60*time.Second)

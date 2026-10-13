@@ -433,7 +433,7 @@ func (a *App) StartTranscode(opts TranscodeOptions) (TranscodeSnapshot, error) {
 	ffmpegPath := locateTool("ffmpeg")
 	if ffmpegPath == "" {
 		a.jobMu.Unlock()
-		return TranscodeSnapshot{}, errors.New("未找到 ffmpeg，请安装 FFmpeg 并将 bin 目录加入 PATH，或设置 FFMPEG_PATH 环境变量")
+		return TranscodeSnapshot{}, errors.New("未找到 ffmpeg，请安装 FFmpeg 并将 bin 目录加入 PATH")
 	}
 
 	if err := os.MkdirAll(plan.OutputDir, 0o755); err != nil {
@@ -835,21 +835,14 @@ func samePath(a, b string) bool {
 }
 
 // locateTool 查找 ffmpeg / ffprobe。查找顺序：
-//  1. 环境变量 FFMPEG_PATH / FFPROBE_PATH
-//  2. 随应用分发的 bin 目录（可执行文件同级或上级、当前工作目录）
-//  3. 系统 PATH
+//  1. 随应用分发的 bin 目录（可执行文件同级或上级、当前工作目录）
+//  2. 系统 PATH
 //
 // 同目录下的兄弟可执行文件会作为最后的兜底，避免只装了一个工具时完全不可用。
 func locateTool(name string) string {
 	exeNames := []string{name}
 	if goruntime.GOOS == "windows" {
 		exeNames = append(exeNames, name+".exe")
-	}
-
-	if custom := strings.TrimSpace(os.Getenv(strings.ToUpper(name) + "_PATH")); custom != "" {
-		if st, err := os.Stat(custom); err == nil && !st.IsDir() {
-			return custom
-		}
 	}
 
 	for _, dir := range localToolDirs() {
