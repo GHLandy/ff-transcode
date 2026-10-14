@@ -1,7 +1,8 @@
 # 视频转码（Wails + FFmpeg）
 
-用 Wails v2 + Go 封装的 FFmpeg 转码小工具：选择视频文件 → 显示原始编码信息 → 选择 CRF（以及
-Profile / Level）→ 转码为 H.264 / MP4（默认 `high` profile、`level 4.1`、`yuv420p`、`+faststart`）。
+用 Wails v2 + Go 封装的 FFmpeg 转码工具：选择视频文件 → 显示原始编码信息 → 选择 CRF（以及
+Profile / Level）→ 转码为浏览器兼容的 H.264 / MP4（默认 `high` profile、`level 4.1`、`yuv420p`、
+`+faststart`），确保转码结果可在主流浏览器中正常播放。
 
 ![界面预览](docs/ui-preview.png)
 
@@ -49,21 +50,27 @@ ffmpeg -i "$FILE_NAME" \
 - **命令预览**：转码前就能看到完整命令行。
 - **进度与日志**：百分比、速度、fps、剩余时间、已写入大小，以及可展开的 ffmpeg 日志；支持中途取消
   （会删除未完成的输出文件）。
+- **明暗主题**：右上角按钮切换亮色 / 暗色，默认亮色，选择记忆在浏览器 `localStorage`。
+- **ffmpeg 检测横幅**：顶部横幅显示三态——检测中（info 蓝）/ 已就绪（success 绿）/ 未通过（error 红）；
+  最右侧 `i` 按钮打开详情弹窗，逐源展示「用户设置 / 程序 bin / PATH」的检测过程、最终使用的路径、版本
+  与设置指引（可一键选择目录或清空设置、打开 bin 目录）。
+- **页脚信息**：作者与联系方式、免责声明、技术栈（Wails · FFmpeg / libx264 · React 19 · TypeScript ·
+  Vite）。
 
 ### 关于 Profile / Level
 
 `-level` 不是画质选项，而是**硬性上限**（宏块数与宏块率），选低了 ffmpeg 会直接报错：
 
-| Level | 典型能力       | 说明                           |
-| ----- | -------------- | ------------------------------ |
-| 3.1   | 720p30         | 兼容性最好                     |
-| 4.0   | 1080p30        | 分辨率上限同 4.1               |
-| 4.1   | 1080p30 高码率 | **默认**，码率上限更高         |
-| 4.2   | 1080p60        | 1080p 高帧率                   |
-| 5.0   | 1440p30        |                                |
-| 5.1   | 4K30           | 4K 素材的最低选择              |
-| 5.2   | 4K60           |                                |
-| 自动  | 由编码器决定   | 不写 `-level`，x264 自行标注   |
+| Level | 典型能力       | 说明                         |
+| ----- | -------------- | ---------------------------- |
+| 3.1   | 720p30         | 兼容性最好                   |
+| 4.0   | 1080p30        | 分辨率上限同 4.1             |
+| 4.1   | 1080p30 高码率 | **默认**，码率上限更高       |
+| 4.2   | 1080p60        | 1080p 高帧率                 |
+| 5.0   | 1440p30        |                              |
+| 5.1   | 4K30           | 4K 素材的最低选择            |
+| 5.2   | 4K60           |                              |
+| 自动  | 由编码器决定   | 不写 `-level`，x264 自行标注 |
 
 `-profile:v` 影响同画质下的体积：`main`（兼容性与体积平衡）、`high`（默认，开 CABAC /
 8x8 变换，体积更小，但少数老设备不支持）。两者都与强制的 `yuv420p` 8bit 兼容，因此可以安全地开放给
@@ -76,8 +83,7 @@ ffmpeg -i "$FILE_NAME" \
 - Node.js（构建前端）
 - **FFmpeg**：按下面的优先级查找 `ffmpeg` / `ffprobe`（两者须在同一目录）
   1. **用户设置**：在界面上手动指定的 ffmpeg 位置（保存在用户配置目录的 `settings.json`）；
-  2. 应用自带的 `bin` 目录（可执行文件同级的 `bin`，或当前工作目录下的 `bin`）——本项目 `bin/` 里已放入
-     ffmpeg / ffprobe 9.0.2，构建后会优先使用它；
+  2. 应用自带的 `bin` 目录（仅**运行程序所在目录**同级的 `bin`，不含当前工作目录的 `bin`）
   3. 系统 `PATH`。
      界面顶部横幅会显示检测中 / 已就绪 / 未通过三种状态，右侧 `i` 按钮可查看完整检测过程与设置指引。
 
@@ -85,21 +91,24 @@ ffmpeg -i "$FILE_NAME" \
 
 ```bash
 wails dev     # 热重载开发
-wails build   # 产物：build/bin/wails-proj.exe
+wails build   # 产物：build/bin/xxx.exe
 ```
 
 ## 代码结构
 
-| 文件                                      | 作用                                                                          |
-| ----------------------------------------- | ----------------------------------------------------------------------------- |
-| `app.go`                                  | 绑定给前端的方法：环境检测、文件/目录对话框、媒体探测、在资源管理器中定位输出 |
-| `media.go`                                | `ffprobe` JSON 解析与人类可读格式化、风险提示                                 |
-| `transcode.go`                            | 命令行构建、后台任务、`-progress` 解析、事件推送、取消与清理                  |
-| `process_windows.go` / `process_other.go` | 隐藏子进程控制台窗口、打开文件管理器                                          |
-| `transcode_test.go`                       | 端到端测试（真实调用 ffmpeg，校验 faststart、取消清理等）                     |
-| `frontend/src/main.ts`                    | 界面逻辑（原生 TypeScript，无框架）                                           |
-| `frontend/src/api.ts`                     | 对 `window.go.main.App` 的类型化封装                                          |
-| `frontend/src/types.ts`                   | 与 Go 返回值对应的类型定义                                                    |
+| 文件                                      | 作用                                                                                     |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `app.go`                                  | 绑定给前端的方法：ffmpeg/ffprobe 检测、文件/目录对话框、媒体探测、在资源管理器中定位输出 |
+| `media.go`                                | `ffprobe` JSON 解析与人类可读格式化、风险提示                                            |
+| `ffmpeg.go`                               | 工具定位逻辑 `resolveToolSet` 与逐源检测 `ToolDetection`（用户设置 / 程序 bin / PATH）   |
+| `settings.go`                             | 用户设置（FFmpegDir）的读写，持久化于用户配置目录的 `settings.json`                      |
+| `transcode.go`                            | 命令行构建、后台任务、`-progress` 解析、事件推送、取消与清理                             |
+| `process_windows.go` / `process_other.go` | 隐藏子进程控制台窗口、打开文件管理器                                                     |
+| `transcode_test.go`                       | 端到端测试（真实调用 ffmpeg，校验 faststart、取消清理等）                                |
+| `frontend/src/main.tsx` / `App.tsx`       | React 界面（含明暗主题、检测横幅三态与详情弹窗）                                         |
+| `frontend/src/DetectModal.tsx`            | ffmpeg 检测详情弹窗                                                                      |
+| `frontend/src/api.ts`                     | 对 `window.go.main.App` 的类型化封装                                                     |
+| `frontend/src/types.ts`                   | 与 Go 返回值对应的类型定义                                                               |
 
 ## 测试
 
