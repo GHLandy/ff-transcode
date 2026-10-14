@@ -913,6 +913,7 @@
 /* ---------- 页脚作者信息 ---------- */
 
 .app-foot {
+  padding: 0 48px;
   border-top: 1px solid var(--line);
   text-align: center;
 }

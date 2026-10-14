@@ -938,8 +938,8 @@ export default function App() {
         </p>
         <p className="tech">基于 Wails · FFmpeg / libx264 · React 19 · TypeScript · Vite 构建</p>
         <p className="disclaimer">
-          免责声明：本工具仅用于本地视频转码，不对转码结果、源文件损坏或版权问题负责；使用 FFmpeg
-          相关功能请遵守其许可证与当地法律法规。
+          免责声明：本工具按原样提供，用于本地视频转码，不随软件分发 FFmpeg 二进制（须由用户自行配置）；不对转码结果、源文件损坏或版权问题承担责任，使用本工具请遵守当地法律法规及
+          FFmpeg 许可证要求。
         </p>
       </footer>
     </div>
