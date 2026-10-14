@@ -18,7 +18,7 @@ func main() {
 	// Create application with options
 	err := wails.Run(&options.App{
 		Title:  "视频转码 · H.264 / MP4",
-		Width:  1080,
+		Width:  1024,
 		Height: 860,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
