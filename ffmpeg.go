@@ -117,28 +117,44 @@ func resolveToolSet(settings AppSettings) (string, string, []DetectSource) {
 	// 3. 系统 PATH
 	pathSrc := DetectSource{Kind: sourcePath, Label: "PATH"}
 	pathSrc.Detail = "-"
-	scanned := 0
+	ffmpegDir, ffprobeDir := "", ""
 	for _, dir := range filepath.SplitList(os.Getenv("PATH")) {
 		if strings.TrimSpace(dir) == "" {
 			continue
 		}
-		scanned++
 		if ffmpegPath == "" {
-			ffmpegPath = findInDir(dir, toolFFmpeg)
+			if p := findInDir(dir, toolFFmpeg); p != "" {
+				ffmpegPath = p
+				ffmpegDir = dir
+			}
 		}
 		if ffprobePath == "" {
-			ffprobePath = findInDir(dir, toolFFprobe)
+			if p := findInDir(dir, toolFFprobe); p != "" {
+				ffprobePath = p
+				ffprobeDir = dir
+			}
 		}
 	}
 	switch {
 	case ffmpegPath != "" && ffprobePath != "":
+		// 找到了：直接显示所在目录，与「程序 bin 目录」风格一致。
 		pathSrc.Found = true
-		pathSrc.Note = fmt.Sprintf("已扫描 %d 个目录，找到 ffmpeg 与 ffprobe", scanned)
-	case ffmpegPath != "" || ffprobePath != "":
+		if ffmpegDir == ffprobeDir {
+			pathSrc.Detail = ffmpegDir
+		} else {
+			pathSrc.Detail = fmt.Sprintf("ffmpeg: %s；ffprobe: %s", ffmpegDir, ffprobeDir)
+		}
+		pathSrc.Note = "已找到 ffmpeg 与 ffprobe"
+	case ffmpegPath != "":
 		pathSrc.Found = true
-		pathSrc.Note = fmt.Sprintf("已扫描 %d 个目录，仅找到 %s", scanned, presentToolName(ffmpegPath, ffprobePath))
+		pathSrc.Detail = ffmpegDir
+		pathSrc.Note = "仅找到 ffmpeg"
+	case ffprobePath != "":
+		pathSrc.Found = true
+		pathSrc.Detail = ffprobeDir
+		pathSrc.Note = "仅找到 ffprobe"
 	default:
-		pathSrc.Note = fmt.Sprintf("已扫描 %d 个目录，未找到匹配的 ffmpeg/ffprobe", scanned)
+		pathSrc.Note = "未找到 ffmpeg 与 ffprobe"
 	}
 	sources = append(sources, pathSrc)
 
