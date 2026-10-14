@@ -13,9 +13,9 @@
 }
 
 .shell {
-  max-width: 940px;
+  max-width: 960px;
   margin: 0 auto;
-  padding: 24px 20px 48px;
+  padding: 24px;
   text-align: left;
 }
 
@@ -250,7 +250,7 @@
 
 .info-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(275px, 1fr));
   gap: 12px;
   margin-top: 14px;
 }
@@ -272,7 +272,7 @@
 
 .info-rows {
   display: grid;
-  grid-template-columns: minmax(88px, auto) 1fr;
+  grid-template-columns: minmax(78px, auto) 1fr;
   gap: 6px 12px;
   font-size: 12.5px;
 }
