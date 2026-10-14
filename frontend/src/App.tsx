@@ -108,10 +108,29 @@ function InfoSection({
 
 export default function App() {
   const [state, setState] = useState<AppState>(INITIAL);
+  const [theme, setTheme] = useState<'light' | 'dark'>(() =>
+    typeof localStorage !== 'undefined' && localStorage.getItem('theme') === 'dark'
+      ? 'dark'
+      : 'light',
+  );
   const logBoxRef = useRef<HTMLPreElement | null>(null);
   const planToken = useRef(0);
   const stateRef = useRef(state);
   stateRef.current = state;
+
+  // 主题：默认亮色，应用到 <html data-theme> 并持久化到 localStorage。
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    try {
+      localStorage.setItem('theme', theme);
+    } catch {
+      // 忽略隐私模式下的写入失败。
+    }
+  }, [theme]);
+
+  const toggleTheme = useCallback(() => {
+    setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
+  }, []);
 
   const patch = useCallback((p: Partial<AppState>) => {
     setState((prev) => ({ ...prev, ...p }));
@@ -545,6 +564,17 @@ export default function App() {
 
   return (
     <div className="shell">
+      <button
+        className="theme-toggle"
+        onClick={() => toggleTheme()}
+        type="button"
+        title={theme === 'light' ? '切换到暗色' : '切换到亮色'}
+        aria-label="切换主题"
+      >
+        <span className="ic">{theme === 'light' ? '🌙' : '☀️'}</span>
+        <span>{theme === 'light' ? '暗色' : '亮色'}</span>
+      </button>
+
       <header className="hero">
         <h1>
           视频转码<span className="tag">H.264 / MP4</span>

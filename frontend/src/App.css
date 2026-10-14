@@ -1,4 +1,37 @@
 :root {
+  /* 亮色（默认） */
+  --bg: #f3f5fa;
+  --card: #ffffff;
+  --card-soft: #eef2f8;
+  --line: #d9e0ec;
+  --text: #1c2533;
+  --muted: #5d6c83;
+  --accent: #2f7ef0;
+  --accent-strong: #2f7ef0;
+  --ok: #1f9d6b;
+  --warn: #b9770a;
+  --error: #d6453f;
+
+  --code-bg: #eef1f6;
+  --input-bg: #ffffff;
+  --info-bg: #f1f4f9;
+  --hover-bg: #e4e9f2;
+  --hover-border: #c5cee0;
+  --cmd-fg: #143a5e;
+  --log-fg: #3a4a60;
+  --warn-text: #955600;
+  --ok-text: #136b46;
+  --busy-text: #2f7ef0;
+  --active-text: #0b3a66;
+  --danger-text: #b3261e;
+  --inline-code-bg: rgba(0, 0, 0, 0.05);
+
+  --scroll-track: #e7ebf2;
+  --scroll-thumb: #c2cbdb;
+  --scroll-thumb-hover: #aab4c6;
+}
+
+[data-theme="dark"] {
   --bg: #161f2c;
   --card: #1f2b3d;
   --card-soft: #24334a;
@@ -10,13 +43,60 @@
   --ok: #3ecf8e;
   --warn: #f5a623;
   --error: #ff6b6b;
+
+  --code-bg: #131c28;
+  --input-bg: #182432;
+  --info-bg: #1a2536;
+  --hover-bg: #2c3e59;
+  --hover-border: #44597a;
+  --cmd-fg: #cfe4ff;
+  --log-fg: #b9cbe4;
+  --warn-text: #ffdca8;
+  --ok-text: #b6f0d5;
+  --busy-text: #cfe4ff;
+  --active-text: #dceaff;
+  --danger-text: #ffb3b3;
+  --inline-code-bg: rgba(255, 255, 255, 0.06);
+
+  --scroll-track: #131c28;
+  --scroll-thumb: #33445e;
+  --scroll-thumb-hover: #44597a;
 }
 
 .shell {
+  position: relative;
   max-width: 960px;
   margin: 0 auto;
   padding: 24px;
   text-align: left;
+}
+
+.theme-toggle {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--card-soft);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.theme-toggle:hover {
+  background: var(--hover-bg);
+  border-color: var(--hover-border);
+}
+
+.theme-toggle .ic {
+  font-size: 14px;
+  line-height: 1;
 }
 
 .hero {
@@ -102,8 +182,8 @@
 }
 
 .btn:hover:not(:disabled) {
-  background: #2c3e59;
-  border-color: #44597a;
+  background: var(--hover-bg);
+  border-color: var(--hover-border);
 }
 
 .btn:disabled {
@@ -124,13 +204,13 @@
 }
 
 .btn.danger {
-  background: rgba(255, 107, 107, 0.12);
-  border-color: rgba(255, 107, 107, 0.4);
-  color: #ffb3b3;
+  background: rgba(214, 69, 63, 0.12);
+  border-color: rgba(214, 69, 63, 0.4);
+  color: var(--danger-text);
 }
 
 .btn.danger:hover:not(:disabled) {
-  background: rgba(255, 107, 107, 0.22);
+  background: rgba(214, 69, 63, 0.22);
 }
 
 .btn.ghost {
@@ -145,7 +225,7 @@
   padding: 8px 10px;
   border-radius: 8px;
   border: 1px solid var(--line);
-  background: #182432;
+  background: var(--input-bg);
   color: var(--text);
 }
 
@@ -172,7 +252,7 @@
 }
 
 .hint code {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--inline-code-bg);
   padding: 1px 5px;
   border-radius: 4px;
   font-size: 12px;
@@ -203,16 +283,16 @@
 }
 
 .banner.ok {
-  border-color: rgba(62, 207, 142, 0.4);
-  background: rgba(62, 207, 142, 0.1);
-  color: #b6f0d5;
+  border-color: rgba(31, 157, 107, 0.4);
+  background: rgba(31, 157, 107, 0.1);
+  color: var(--ok-text);
 }
 
 .banner.error,
 .warnbox {
-  border-color: rgba(245, 166, 35, 0.4);
-  background: rgba(245, 166, 35, 0.1);
-  color: #ffdca8;
+  border-color: rgba(185, 119, 10, 0.4);
+  background: rgba(185, 119, 10, 0.1);
+  color: var(--warn-text);
 }
 
 .banner b,
@@ -227,7 +307,7 @@
 }
 
 .warnbox {
-  border: 1px solid rgba(245, 166, 35, 0.4);
+  border: 1px solid rgba(185, 119, 10, 0.4);
   border-radius: 10px;
   padding: 10px 14px;
   margin: 14px 0;
@@ -256,7 +336,7 @@
 }
 
 .info-section {
-  background: #1a2536;
+  background: var(--info-bg);
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 12px 14px;
@@ -327,7 +407,7 @@
 }
 
 .crf-opt:hover {
-  border-color: #44597a;
+  border-color: var(--hover-border);
 }
 
 .crf-opt.is-active {
@@ -338,7 +418,7 @@
 
 .crf-opt.is-active b,
 .crf-opt.is-active span {
-  color: #dceaff;
+  color: var(--active-text);
 }
 
 /* ---------- 复选框 ---------- */
@@ -381,7 +461,7 @@
   padding: 8px 10px;
   border-radius: 8px;
   border: 1px solid var(--line);
-  background: #182432;
+  background: var(--input-bg);
   color: var(--text);
   cursor: pointer;
 }
@@ -400,7 +480,7 @@
 }
 
 .warn-text {
-  color: #ffdca8;
+  color: var(--warn-text);
 }
 
 /* ---------- 命令预览 ---------- */
@@ -410,8 +490,8 @@
   padding: 12px 14px;
   border-radius: 10px;
   border: 1px solid var(--line);
-  background: #131c28;
-  color: #cfe4ff;
+  background: var(--code-bg);
+  color: var(--cmd-fg);
   font-size: 12.5px;
   line-height: 1.65;
   white-space: pre-wrap;
@@ -421,7 +501,7 @@
 .notes {
   margin-top: 10px;
   font-size: 12.5px;
-  color: #ffdca8;
+  color: var(--warn-text);
   line-height: 1.6;
 }
 
@@ -434,7 +514,7 @@
 .progress {
   height: 10px;
   border-radius: 999px;
-  background: #131c28;
+  background: var(--code-bg);
   border: 1px solid var(--line);
   overflow: hidden;
 }
@@ -485,7 +565,7 @@
 }
 
 .status-text.status-busy {
-  color: #cfe4ff;
+  color: var(--busy-text);
 }
 
 .status-text.status-ok {
@@ -506,7 +586,7 @@
   margin-top: 14px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: #131c28;
+  background: var(--code-bg);
   overflow: hidden;
 }
 
@@ -530,7 +610,7 @@
   font-family: 'Cascadia Mono', Consolas, 'Courier New', monospace;
   font-size: 11.5px;
   line-height: 1.55;
-  color: #b9cbe4;
+  color: var(--log-fg);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   border-top: 1px solid var(--line);
