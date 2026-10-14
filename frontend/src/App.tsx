@@ -652,6 +652,9 @@ export default function App() {
           视频转码<span className="tag">H.264 / MP4</span>
         </h1>
         <p className="hero-sub">libx264 · yuv420p · +faststart · 默认 high profile / level 4.1</p>
+        <p className="hero-sub">
+          基于 FFmpeg 将视频转码为浏览器兼容的 H.264 / MP4，以便在主流浏览器中正常播放。
+        </p>
       </header>
 
       <div className={`banner banner-${state.toolPhase}`}>
