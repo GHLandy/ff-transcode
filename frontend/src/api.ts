@@ -1,14 +1,19 @@
 import type {
+    AppSettings,
     CommandPlan,
     MediaInfo,
-    ToolStatus,
+    ToolDetection,
     TranscodeOptions,
     TranscodePresets,
     TranscodeSnapshot,
 } from './types';
 
 interface GoApp {
-    CheckTools(): Promise<ToolStatus>;
+    CheckTools(): Promise<ToolDetection>;
+    GetUserSettings(): Promise<AppSettings>;
+    ChooseFFmpeg(): Promise<ToolDetection>;
+    ClearFFmpegSetting(): Promise<ToolDetection>;
+    OpenBinDir(): Promise<void>;
     GetPresets(): Promise<TranscodePresets>;
     SelectVideoFile(): Promise<string>;
     SelectOutputDir(current: string): Promise<string>;
@@ -42,8 +47,28 @@ function app(): GoApp {
     return bridge;
 }
 
-export function checkTools(): Promise<ToolStatus> {
+export function checkTools(): Promise<ToolDetection> {
     return app().CheckTools();
+}
+
+/** 读取当前用户设置。 */
+export function getUserSettings(): Promise<AppSettings> {
+    return app().GetUserSettings();
+}
+
+/** 打开文件对话框手动指定 ffmpeg，并返回重新检测后的结果。 */
+export function chooseFfmpeg(): Promise<ToolDetection> {
+    return app().ChooseFFmpeg();
+}
+
+/** 清除用户手动设置，回退到自动查找，并返回重新检测后的结果。 */
+export function clearFfmpegSetting(): Promise<ToolDetection> {
+    return app().ClearFFmpegSetting();
+}
+
+/** 在文件管理器中打开程序 bin 目录。 */
+export function openBinDir(): Promise<void> {
+    return app().OpenBinDir();
 }
 
 /** 获取 Go 侧提供的 CRF / Profile / Level 可选项。 */

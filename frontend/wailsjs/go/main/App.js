@@ -10,12 +10,28 @@ export function CheckTools() {
   return window['go']['main']['App']['CheckTools']();
 }
 
+export function ChooseFFmpeg() {
+  return window['go']['main']['App']['ChooseFFmpeg']();
+}
+
+export function ClearFFmpegSetting() {
+  return window['go']['main']['App']['ClearFFmpegSetting']();
+}
+
 export function GetPresets() {
   return window['go']['main']['App']['GetPresets']();
 }
 
 export function GetTranscodeStatus() {
   return window['go']['main']['App']['GetTranscodeStatus']();
+}
+
+export function GetUserSettings() {
+  return window['go']['main']['App']['GetUserSettings']();
+}
+
+export function OpenBinDir() {
+  return window['go']['main']['App']['OpenBinDir']();
 }
 
 export function PlanTranscode(arg1) {

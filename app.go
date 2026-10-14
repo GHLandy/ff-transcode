@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -40,41 +39,58 @@ func (a *App) baseContext() context.Context {
 
 // ---- 环境检测 ----
 
-// ToolStatus 报告 ffmpeg / ffprobe 的可用性。
-type ToolStatus struct {
-	Available     bool   `json:"available"`
-	FFmpegPath    string `json:"ffmpegPath"`
-	FFprobePath   string `json:"ffprobePath"`
-	FFmpegVersion string `json:"ffmpegVersion"`
-	Message       string `json:"message"`
+// CheckTools 按「用户设置 → 程序 bin 目录 → PATH」的优先级检测 ffmpeg / ffprobe。
+func (a *App) CheckTools() ToolDetection {
+	return detectTools(currentSettings())
 }
 
-// CheckTools 检测 ffmpeg / ffprobe 是否可用，界面据此提示环境问题。
-func (a *App) CheckTools() ToolStatus {
-	ffmpegPath := locateTool("ffmpeg")
-	ffprobePath := locateTool("ffprobe")
+// GetUserSettings 返回当前生效的用户设置。
+func (a *App) GetUserSettings() AppSettings {
+	return currentSettings()
+}
 
-	status := ToolStatus{FFmpegPath: ffmpegPath, FFprobePath: ffprobePath}
-	if ffmpegPath != "" {
-		cmd := exec.Command(ffmpegPath, "-version")
-		cmd.SysProcAttr = hideWindow()
-		if out, err := cmd.Output(); err == nil {
-			status.FFmpegVersion = strings.TrimSpace(strings.SplitN(string(out), "\n", 2)[0])
-		}
+// ChooseFFmpeg 打开文件对话框，让用户手动指定 ffmpeg 可执行文件；
+// 选定后读取其所在目录并保存为「用户设置」，同目录须存在 ffprobe。
+// 返回空字符串表示用户取消；返回的检测结果已按新设置重新执行。
+func (a *App) ChooseFFmpeg() (ToolDetection, error) {
+	selected, err := runtime.OpenFileDialog(a.baseContext(), runtime.OpenDialogOptions{
+		Title: "选择 ffmpeg 可执行文件",
+		Filters: []runtime.FileFilter{
+			{DisplayName: "ffmpeg (ffmpeg / ffmpeg.exe)", Pattern: "ffmpeg;ffmpeg.exe"},
+			{DisplayName: "所有文件 (*.*)", Pattern: "*.*"},
+		},
+	})
+	if err != nil {
+		return ToolDetection{}, err
+	}
+	selected = strings.TrimSpace(selected)
+	if selected == "" {
+		// 用户取消：返回当前检测结果，便于前端刷新。
+		return detectTools(currentSettings()), nil
 	}
 
-	switch {
-	case ffmpegPath == "" && ffprobePath == "":
-		status.Message = "未找到 ffmpeg 与 ffprobe。请安装 FFmpeg 并把 bin 目录加入 PATH。"
-	case ffmpegPath == "":
-		status.Message = "未找到 ffmpeg，无法转码；请把 ffmpeg 放入 PATH 或随应用 bin 目录。"
-	case ffprobePath == "":
-		status.Message = "未找到 ffprobe，无法读取视频编码信息；请把 ffprobe 放入 PATH 或随应用 bin 目录。"
-	default:
-		status.Available = true
-		status.Message = "FFmpeg 已就绪"
+	dir := filepath.Dir(selected)
+	if err := setUserFFmpegDir(dir); err != nil {
+		return ToolDetection{}, errors.New("保存设置失败：" + err.Error())
 	}
-	return status
+	return detectTools(currentSettings()), nil
+}
+
+// ClearFFmpegSetting 清除用户手动设置的 ffmpeg 目录，回退到自动查找。
+func (a *App) ClearFFmpegSetting() (ToolDetection, error) {
+	if err := setUserFFmpegDir(""); err != nil {
+		return ToolDetection{}, errors.New("保存设置失败：" + err.Error())
+	}
+	return detectTools(currentSettings()), nil
+}
+
+// OpenBinDir 在文件管理器中打开程序 bin 目录，方便用户放入 ffmpeg / ffprobe。
+func (a *App) OpenBinDir() error {
+	dir := primaryBinDir()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return errors.New("创建目录失败：" + err.Error())
+	}
+	return openInFileManager(dir)
 }
 
 // ---- 文件选择 ----

@@ -117,9 +117,9 @@ type ffprobeStream struct {
 
 // probeMedia 调用 ffprobe 读取文件的媒体信息。
 func probeMedia(ctx context.Context, path string) (*MediaInfo, error) {
-	ffprobe := locateTool("ffprobe")
+	_, ffprobe, _ := resolveToolSet(currentSettings())
 	if ffprobe == "" {
-		return nil, errors.New("未找到 ffprobe，请安装 FFmpeg 并将 bin 目录加入 PATH")
+		return nil, errors.New("未找到 ffprobe，请安装 FFmpeg，或在设置中手动指定 ffmpeg 位置")
 	}
 
 	cctx, cancel := context.WithTimeout(ctx, 60*time.Second)

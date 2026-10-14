@@ -54,12 +54,33 @@ export interface MediaInfo {
     bitmapSubtitles: string[];
 }
 
-export interface ToolStatus {
+/** 查找来源：user=用户设置，bin=程序 bin 目录，path=系统 PATH。 */
+export type DetectSourceKind = 'user' | 'bin' | 'path';
+
+/** 查找过程中的一步。 */
+export interface DetectSource {
+    kind: DetectSourceKind;
+    label: string;
+    detail: string;
+    found: boolean;
+    note: string;
+}
+
+/** 一次完整的 ffmpeg / ffprobe 检测结果。 */
+export interface ToolDetection {
     available: boolean;
     ffmpegPath: string;
     ffprobePath: string;
     ffmpegVersion: string;
     message: string;
+    sources: DetectSource[];
+    /** 程序 bin 目录的绝对路径。 */
+    binDir: string;
+}
+
+/** 持久化的用户设置。 */
+export interface AppSettings {
+    ffmpegDir: string;
 }
 
 export interface CommandPlan {

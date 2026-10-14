@@ -18,11 +18,11 @@ func requireFFmpeg(t *testing.T) string {
 	if testing.Short() {
 		t.Skip("short 模式跳过依赖 ffmpeg 的测试")
 	}
-	path := locateTool("ffmpeg")
+	path, ffprobe, _ := resolveToolSet(AppSettings{})
 	if path == "" {
 		t.Skip("未找到 ffmpeg，跳过测试")
 	}
-	if locateTool("ffprobe") == "" {
+	if ffprobe == "" {
 		t.Skip("未找到 ffprobe，跳过测试")
 	}
 	return path
@@ -418,8 +418,8 @@ func TestTranscodeCancelRemovesPartialFile(t *testing.T) {
 	}
 }
 
-// TestLocateToolPrefersBundledBin 验证随项目分发的 bin/ 目录优先于系统 PATH。
-func TestLocateToolPrefersBundledBin(t *testing.T) {
+// TestResolveToolSetPrefersBundledBin 验证随项目分发的 bin/ 目录优先于系统 PATH。
+func TestResolveToolSetPrefersBundledBin(t *testing.T) {
 	bundled := filepath.Join("bin", "ffmpeg.exe")
 	if _, err := os.Stat(bundled); err != nil {
 		t.Skip("项目内没有 bin/ffmpeg.exe，跳过")
@@ -428,8 +428,28 @@ func TestLocateToolPrefersBundledBin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("解析路径失败：%v", err)
 	}
-	if got := locateTool("ffmpeg"); !samePath(got, want) {
-		t.Errorf("locateTool(ffmpeg) = %q，期望优先使用项目内的 %q", got, want)
+	ffmpegPath, _, _ := resolveToolSet(AppSettings{})
+	if !samePath(ffmpegPath, want) {
+		t.Errorf("resolveToolSet 返回 %q，期望优先使用项目内的 %q", ffmpegPath, want)
+	}
+}
+
+// TestResolveToolSetPrefersUserSetting 验证用户设置优先于程序 bin 目录。
+func TestResolveToolSetPrefersUserSetting(t *testing.T) {
+	dir := t.TempDir()
+	ffmpeg := filepath.Join(dir, "ffmpeg.exe")
+	ffprobe := filepath.Join(dir, "ffprobe.exe")
+	for _, name := range []string{ffmpeg, ffprobe} {
+		if err := os.WriteFile(name, []byte("stub"), 0o644); err != nil {
+			t.Fatalf("写入占位文件失败：%v", err)
+		}
+	}
+	ffmpegPath, ffprobePath, sources := resolveToolSet(AppSettings{FFmpegDir: dir})
+	if !samePath(ffmpegPath, ffmpeg) || !samePath(ffprobePath, ffprobe) {
+		t.Fatalf("用户设置未被优先使用：ffmpeg=%q ffprobe=%q", ffmpegPath, ffprobePath)
+	}
+	if len(sources) == 0 || sources[0].Kind != sourceUser || !sources[0].Found {
+		t.Errorf("首条查找来源应为已命中的用户设置，实际为 %+v", sources)
 	}
 }
 

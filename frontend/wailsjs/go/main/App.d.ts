@@ -4,11 +4,19 @@ import {main} from '../models';
 
 export function CancelTranscode():Promise<void>;
 
-export function CheckTools():Promise<main.ToolStatus>;
+export function CheckTools():Promise<main.ToolDetection>;
+
+export function ChooseFFmpeg():Promise<main.ToolDetection>;
+
+export function ClearFFmpegSetting():Promise<main.ToolDetection>;
 
 export function GetPresets():Promise<main.TranscodePresets>;
 
 export function GetTranscodeStatus():Promise<main.TranscodeSnapshot>;
+
+export function GetUserSettings():Promise<main.AppSettings>;
+
+export function OpenBinDir():Promise<void>;
 
 export function PlanTranscode(arg1:main.TranscodeOptions):Promise<main.CommandPlan>;
 

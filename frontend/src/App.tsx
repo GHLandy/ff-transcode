@@ -1,5 +1,6 @@
 import { Fragment, type ReactElement, useCallback, useEffect, useRef, useState } from 'react';
 import * as api from './api';
+import DetectModal from './DetectModal';
 import './App.css';
 import type {
   CommandPlan,
@@ -9,8 +10,11 @@ import type {
   TranscodePresets,
   TranscodeProgress,
   TranscodeSnapshot,
-  ToolStatus,
+  ToolDetection,
 } from './types';
+
+/** 环境检测状态：detecting=检测中，ok=已就绪，missing=未通过。 */
+type ToolPhase = 'detecting' | 'ok' | 'missing';
 
 const DEFAULT_CRF = 23;
 /** 与 Go 侧默认档位保持一致，取不到预设时作为兜底。 */
@@ -26,7 +30,8 @@ const FALLBACK_CRFS: OptionItem[] = [
 ];
 
 interface AppState {
-  tools: ToolStatus | null;
+  toolPhase: ToolPhase;
+  tools: ToolDetection | null;
   info: MediaInfo | null;
   presets: TranscodePresets | null;
   sourcePath: string;
@@ -47,6 +52,7 @@ interface AppState {
 }
 
 const INITIAL: AppState = {
+  toolPhase: 'detecting',
   tools: null,
   info: null,
   presets: null,
@@ -136,12 +142,85 @@ export default function App() {
     setState((prev) => ({ ...prev, ...p }));
   }, []);
 
+  // ---------- 环境检测 ----------
+  const detectingRef = useRef(false);
+  const [showDetect, setShowDetect] = useState(false);
+
+  const runDetect = useCallback(async () => {
+    if (detectingRef.current) {
+      return;
+    }
+    detectingRef.current = true;
+    patch({ toolPhase: 'detecting', tools: null });
+    try {
+      const det = await api.checkTools();
+      setState((prev) => ({
+        ...prev,
+        tools: det,
+        toolPhase: det.available ? 'ok' : 'missing',
+      }));
+    } catch (err) {
+      setState((prev) => ({
+        ...prev,
+        tools: {
+          available: false,
+          ffmpegPath: '',
+          ffprobePath: '',
+          ffmpegVersion: '',
+          message: `检测失败：${errorText(err)}`,
+          sources: [],
+          binDir: '',
+        },
+        toolPhase: 'missing',
+      }));
+    } finally {
+      detectingRef.current = false;
+    }
+  }, [patch]);
+
   const setStatus = useCallback(
     (text: string, kind: AppState['status']['kind'] = 'idle') => {
       patch({ status: { text, kind } });
     },
     [patch],
   );
+
+  const chooseFfmpeg = useCallback(async () => {
+    try {
+      const det = await api.chooseFfmpeg();
+      setState((prev) => ({
+        ...prev,
+        tools: det,
+        toolPhase: det.available ? 'ok' : 'missing',
+      }));
+      if (det.available) {
+        setShowDetect(false);
+      }
+    } catch (err) {
+      setStatus(`设置失败：${errorText(err)}`, 'error');
+    }
+  }, [setStatus]);
+
+  const clearFfmpeg = useCallback(async () => {
+    try {
+      const det = await api.clearFfmpegSetting();
+      setState((prev) => ({
+        ...prev,
+        tools: det,
+        toolPhase: det.available ? 'ok' : 'missing',
+      }));
+    } catch (err) {
+      setStatus(`重置失败：${errorText(err)}`, 'error');
+    }
+  }, [setStatus]);
+
+  const openBinDir = useCallback(async () => {
+    try {
+      await api.openBinDir();
+    } catch (err) {
+      setStatus(`打开目录失败：${errorText(err)}`, 'error');
+    }
+  }, [setStatus]);
 
   const setRunning = useCallback(
     (running: boolean) => {
@@ -420,14 +499,7 @@ export default function App() {
     const offDone = api.on('transcode:done', (payload) => onDone(payload as TranscodeSnapshot));
 
     (async () => {
-      try {
-        const tools = await api.checkTools();
-        patch({ tools });
-      } catch (err) {
-        patch({
-          tools: { available: false, message: errorText(err) } as ToolStatus,
-        });
-      }
+      await runDetect();
       try {
         const presets = await api.getPresets();
         setState((prev) => {
@@ -452,7 +524,7 @@ export default function App() {
       offLog();
       offDone();
     };
-  }, [onDone, onLog, onProgress, patch, restoreStatus, setStatus]);
+  }, [onDone, onLog, onProgress, restoreStatus, runDetect, setStatus]);
 
   // 日志滚动条贴近底部。
   useEffect(() => {
@@ -582,21 +654,46 @@ export default function App() {
         <p className="hero-sub">libx264 · yuv420p · +faststart · 默认 high profile / level 4.1</p>
       </header>
 
-      {state.tools && (
-        <div className={`banner ${state.tools.available ? 'ok' : 'error'}`}>
-          {state.tools.available ? (
+      <div className={`banner banner-${state.toolPhase}`}>
+        <div className="banner-main">
+          {state.toolPhase === 'detecting' && (
+            <>
+              <b>
+                <span className="spin" /> FFmpeg 环境检测中…
+              </b>
+              <div>正在按「用户设置 → 程序 bin 目录 → PATH」的顺序查找 ffmpeg / ffprobe。</div>
+            </>
+          )}
+          {state.toolPhase === 'ok' && (
             <>
               <b>FFmpeg 已就绪</b>
-              <div>{state.tools.ffmpegVersion || state.tools.ffmpegPath}</div>
+              <div>{state.tools?.ffmpegVersion || state.tools?.ffmpegPath}</div>
             </>
-          ) : (
+          )}
+          {state.toolPhase === 'missing' && (
             <>
               <b>环境检查未通过</b>
-              <div>{state.tools.message}</div>
+              <div>{state.tools?.message || '未找到可用的 ffmpeg / ffprobe。'}</div>
             </>
           )}
         </div>
-      )}
+        <div className="banner-actions">
+          {state.toolPhase !== 'detecting' && (
+            <button className="btn tiny" onClick={() => void runDetect()} type="button">
+              重新检测
+            </button>
+          )}
+          <button
+            className="icon-btn"
+            onClick={() => setShowDetect(true)}
+            type="button"
+            title="查看检测详情"
+            aria-label="查看检测详情"
+          >
+            i
+          </button>
+        </div>
+      </div>
 
       <section className="card">
         <h2 className="card-title">
@@ -817,6 +914,16 @@ export default function App() {
           <pre ref={logBoxRef}>{state.logs.join('\n')}</pre>
         </details>
       </section>
+
+      {showDetect && (
+        <DetectModal
+          detection={state.tools}
+          onClose={() => setShowDetect(false)}
+          onChoose={() => void chooseFfmpeg()}
+          onClear={() => void clearFfmpeg()}
+          onOpenBinDir={() => void openBinDir()}
+        />
+      )}
     </div>
   );
 }

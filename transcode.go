@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	goruntime "runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -430,10 +429,10 @@ func (a *App) StartTranscode(opts TranscodeOptions) (TranscodeSnapshot, error) {
 		return TranscodeSnapshot{}, err
 	}
 
-	ffmpegPath := locateTool("ffmpeg")
+	ffmpegPath, _, _ := resolveToolSet(currentSettings())
 	if ffmpegPath == "" {
 		a.jobMu.Unlock()
-		return TranscodeSnapshot{}, errors.New("未找到 ffmpeg，请安装 FFmpeg 并将 bin 目录加入 PATH")
+		return TranscodeSnapshot{}, errors.New("未找到 ffmpeg，请安装 FFmpeg，或在设置中手动指定 ffmpeg 位置")
 	}
 
 	if err := os.MkdirAll(plan.OutputDir, 0o755); err != nil {
@@ -832,54 +831,4 @@ func samePath(a, b string) bool {
 		return strings.EqualFold(a, b)
 	}
 	return strings.EqualFold(filepath.Clean(ca), filepath.Clean(cb))
-}
-
-// locateTool 查找 ffmpeg / ffprobe。查找顺序：
-//  1. 随应用分发的 bin 目录（可执行文件同级或上级、当前工作目录）
-//  2. 系统 PATH
-//
-// 同目录下的兄弟可执行文件会作为最后的兜底，避免只装了一个工具时完全不可用。
-func locateTool(name string) string {
-	exeNames := []string{name}
-	if goruntime.GOOS == "windows" {
-		exeNames = append(exeNames, name+".exe")
-	}
-
-	for _, dir := range localToolDirs() {
-		for _, exe := range exeNames {
-			candidate := filepath.Join(dir, exe)
-			if st, err := os.Stat(candidate); err == nil && !st.IsDir() {
-				return candidate
-			}
-		}
-	}
-
-	if found, err := exec.LookPath(name); err == nil {
-		return found
-	}
-
-	other := "ffmpeg"
-	if name == "ffmpeg" {
-		other = "ffprobe"
-	}
-	if sibling, err := exec.LookPath(other); err == nil {
-		candidate := filepath.Join(filepath.Dir(sibling), name+".exe")
-		if st, err := os.Stat(candidate); err == nil && !st.IsDir() {
-			return candidate
-		}
-	}
-	return ""
-}
-
-// localToolDirs 返回优先查找的本地目录：可执行文件所在目录及其 bin 子目录、当前工作目录及其 bin 子目录。
-func localToolDirs() []string {
-	dirs := make([]string, 0, 4)
-	if exe, err := os.Executable(); err == nil {
-		base := filepath.Dir(exe)
-		dirs = append(dirs, filepath.Join(base, "bin"), base)
-	}
-	if wd, err := os.Getwd(); err == nil {
-		dirs = append(dirs, filepath.Join(wd, "bin"), wd)
-	}
-	return dirs
 }

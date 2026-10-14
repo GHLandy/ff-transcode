@@ -1,5 +1,17 @@
 export namespace main {
 	
+	export class AppSettings {
+	    ffmpegDir: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AppSettings(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ffmpegDir = source["ffmpegDir"];
+	    }
+	}
 	export class AudioInfo {
 	    index: number;
 	    codec: string;
@@ -62,6 +74,26 @@ export namespace main {
 	        this.commandLine = source["commandLine"];
 	        this.notes = source["notes"];
 	        this.faststart = source["faststart"];
+	    }
+	}
+	export class DetectSource {
+	    kind: string;
+	    label: string;
+	    detail: string;
+	    found: boolean;
+	    note: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DetectSource(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.kind = source["kind"];
+	        this.label = source["label"];
+	        this.detail = source["detail"];
+	        this.found = source["found"];
+	        this.note = source["note"];
 	    }
 	}
 	export class VideoInfo {
@@ -188,15 +220,17 @@ export namespace main {
 	        this.hint = source["hint"];
 	    }
 	}
-	export class ToolStatus {
+	export class ToolDetection {
 	    available: boolean;
 	    ffmpegPath: string;
 	    ffprobePath: string;
 	    ffmpegVersion: string;
 	    message: string;
+	    sources: DetectSource[];
+	    binDir: string;
 	
 	    static createFrom(source: any = {}) {
-	        return new ToolStatus(source);
+	        return new ToolDetection(source);
 	    }
 	
 	    constructor(source: any = {}) {
@@ -206,7 +240,27 @@ export namespace main {
 	        this.ffprobePath = source["ffprobePath"];
 	        this.ffmpegVersion = source["ffmpegVersion"];
 	        this.message = source["message"];
+	        this.sources = this.convertValues(source["sources"], DetectSource);
+	        this.binDir = source["binDir"];
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class TranscodeOptions {
 	    sourcePath: string;
