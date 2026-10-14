@@ -1,4 +1,4 @@
-module wails-proj
+module ff-transcode
 
 go 1.25.0
 
