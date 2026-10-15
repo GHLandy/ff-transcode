@@ -6,6 +6,8 @@ Profile / Level）→ 转码为浏览器兼容的 H.264 / MP4（默认 `high` pr
 
 ![界面预览](docs/ui-preview.png)
 
+![ffmpeg 检测](docs/ffmpeg-dectect.png)
+
 ## 核心命令
 
 界面里做的，等价于下面这条命令（`FILE_NAME` 为所选文件）：
