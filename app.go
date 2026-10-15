@@ -93,6 +93,11 @@ func (a *App) OpenBinDir() error {
 	return openInFileManager(dir)
 }
 
+// OpenFFmpegDownloadPage 打开 FFmpeg 官方下载页。
+func (a *App) OpenFFmpegDownloadPage() {
+	runtime.BrowserOpenURL(a.baseContext(), "https://ffmpeg.org/download.html")
+}
+
 // ---- 文件选择 ----
 
 // SelectVideoFile 打开文件对话框选择视频，返回空字符串表示用户取消。

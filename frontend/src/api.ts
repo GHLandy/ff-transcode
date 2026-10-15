@@ -14,6 +14,7 @@ interface GoApp {
     ChooseFFmpeg(): Promise<ToolDetection>;
     ClearFFmpegSetting(): Promise<ToolDetection>;
     OpenBinDir(): Promise<void>;
+    OpenFFmpegDownloadPage(): Promise<void>;
     GetPresets(): Promise<TranscodePresets>;
     SelectVideoFile(): Promise<string>;
     SelectOutputDir(current: string): Promise<string>;
@@ -69,6 +70,11 @@ export function clearFfmpegSetting(): Promise<ToolDetection> {
 /** 在文件管理器中打开程序 bin 目录。 */
 export function openBinDir(): Promise<void> {
     return app().OpenBinDir();
+}
+
+/** 在浏览器中打开 FFmpeg 官方下载页。 */
+export function openFFmpegDownloadPage(): Promise<void> {
+    return app().OpenFFmpegDownloadPage();
 }
 
 /** 获取 Go 侧提供的 CRF / Profile / Level 可选项。 */

@@ -925,6 +925,7 @@ export default function App() {
           onChoose={() => void chooseFfmpeg()}
           onClear={() => void clearFfmpeg()}
           onOpenBinDir={() => void openBinDir()}
+          onDownloadFFmpeg={() => void api.openFFmpegDownloadPage()}
         />
       )}
 

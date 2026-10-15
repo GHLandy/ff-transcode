@@ -34,6 +34,10 @@ export function OpenBinDir() {
   return window['go']['main']['App']['OpenBinDir']();
 }
 
+export function OpenFFmpegDownloadPage() {
+  return window['go']['main']['App']['OpenFFmpegDownloadPage']();
+}
+
 export function PlanTranscode(arg1) {
   return window['go']['main']['App']['PlanTranscode'](arg1);
 }

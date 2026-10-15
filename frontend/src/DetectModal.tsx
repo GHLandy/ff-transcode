@@ -14,6 +14,7 @@ interface Props {
   onChoose: () => void;
   onClear: () => void;
   onOpenBinDir: () => void;
+  onDownloadFFmpeg: () => void;
 }
 
 export default function DetectModal({
@@ -22,6 +23,7 @@ export default function DetectModal({
   onChoose,
   onClear,
   onOpenBinDir,
+  onDownloadFFmpeg,
 }: Props) {
   // Esc 关闭 + 打开时锁定滚动。
   useEffect(() => {
@@ -100,6 +102,11 @@ export default function DetectModal({
             {hasUserSetting && (
               <button className="btn danger" onClick={onClear} type="button">
                 清除设置
+              </button>
+            )}
+            {!ok && (
+              <button className="btn" onClick={onDownloadFFmpeg} type="button">
+                下载 FFmpeg
               </button>
             )}
           </div>

@@ -18,6 +18,8 @@ export function GetUserSettings():Promise<main.AppSettings>;
 
 export function OpenBinDir():Promise<void>;
 
+export function OpenFFmpegDownloadPage():Promise<void>;
+
 export function PlanTranscode(arg1:main.TranscodeOptions):Promise<main.CommandPlan>;
 
 export function ProbeMedia(arg1:string):Promise<main.MediaInfo>;
