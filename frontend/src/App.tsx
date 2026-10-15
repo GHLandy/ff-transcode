@@ -706,10 +706,10 @@ export default function App() {
           <button
             className="btn primary"
             onClick={() => void pickFile()}
-            disabled={state.running}
+            disabled={state.running || ['detecting', 'missing'].includes(state.toolPhase)}
             type="button"
           >
-            选择视频文件…
+            选择视频文件
           </button>
           <span className="file-label muted">{state.sourcePath || '尚未选择文件'}</span>
         </div>
@@ -834,10 +834,10 @@ export default function App() {
             <button
               className="btn"
               onClick={() => void pickOutputDir()}
-              disabled={state.running}
+              disabled={state.running || ['detecting', 'missing'].includes(state.toolPhase)}
               type="button"
             >
-              选择…
+              选择
             </button>
           </div>
           {state.plan && (
@@ -939,7 +939,8 @@ export default function App() {
         </p>
         <p className="tech">基于 Wails · FFmpeg / libx264 · React 19 · TypeScript · Vite 构建</p>
         <p className="disclaimer">
-          免责声明：本工具按原样提供，用于本地视频转码，不随软件分发 FFmpeg 二进制（须由用户自行配置）；不对转码结果、源文件损坏或版权问题承担责任，使用本工具请遵守当地法律法规及
+          免责声明：本工具按原样提供，用于本地视频转码，不随软件分发 FFmpeg
+          二进制（须由用户自行配置）；不对转码结果、源文件损坏或版权问题承担责任，使用本工具请遵守当地法律法规及
           FFmpeg 许可证要求。
         </p>
       </footer>
