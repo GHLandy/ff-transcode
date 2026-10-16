@@ -1,6 +1,7 @@
 package main
 
 import (
+	_ "embed"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -8,14 +9,29 @@ import (
 	"sync"
 )
 
+//go:embed wails.json
+var wailsConfigJSON []byte
+
 // AppSettings 是持久化到用户配置目录的应用设置。
 type AppSettings struct {
 	// FFmpegDir 是用户手动指定的 ffmpeg / ffprobe 所在目录；为空表示未设置。
 	FFmpegDir string `json:"ffmpegDir"`
 }
 
-// appConfigDir 是配置在用户配置目录下的子目录名。
-const appConfigDir = "fftranscode"
+// appConfigDir 返回配置在用户配置目录下的子目录名，取自 wails.json 的 name 字段，
+// 因此会随 wails.json 中的 name 变更而变动。wails.json 通过 go:embed 嵌入，
+// 在构建时即确定；解析失败或 name 为空时回退到后备值。
+func appConfigDir() string {
+	var cfg struct {
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal(wailsConfigJSON, &cfg); err == nil {
+		if name := strings.TrimSpace(cfg.Name); name != "" {
+			return name
+		}
+	}
+	return "ff-transcode"
+}
 
 // settingsFileName 是配置文件在用户配置目录下的文件名。
 const settingsFileName = "settings.json"
@@ -76,7 +92,7 @@ func settingsFilePath() string {
 			return ""
 		}
 	}
-	path := filepath.Join(dir, appConfigDir, settingsFileName)
+	path := filepath.Join(dir, appConfigDir(), settingsFileName)
 
 	settingsMu.Lock()
 	settingsPath = path

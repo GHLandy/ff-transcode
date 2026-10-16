@@ -1,6 +1,6 @@
-# 视频转码（Wails + FFmpeg）
+# 视频转码（ff-transcode）
 
-用 Wails v2 + Go 封装的 FFmpeg 转码工具：选择视频文件 → 显示原始编码信息 → 选择 CRF（以及
+用 Wails v2 + Go 做界面调用 FFmpeg 的转码工具：选择视频文件 → 显示原始编码信息 → 选择 CRF（以及
 Profile / Level）→ 转码为浏览器兼容的 H.264 / MP4（默认 `high` profile、`level 4.1`、`yuv420p`、
 `+faststart`），确保转码结果可在主流浏览器中正常播放。
 
@@ -54,8 +54,8 @@ ffmpeg -i "$FILE_NAME" \
   （会删除未完成的输出文件）。
 - **明暗主题**：右上角按钮切换亮色 / 暗色，默认亮色，选择记忆在浏览器 `localStorage`。
 - **ffmpeg 检测横幅**：顶部横幅显示三态——检测中（info 蓝）/ 已就绪（success 绿）/ 未通过（error 红）；
-  最右侧 `i` 按钮打开详情弹窗，逐源展示「用户设置 / 程序 bin / PATH」的检测过程、最终使用的路径、版本
-  与设置指引（可一键选择目录或清空设置、打开 bin 目录）。
+  最右侧 `i` 按钮打开详情弹窗，逐源展示「用户设置 / 程序 bin 目录 / PATH」的检测过程（PATH 命中时会显示其所在目录）、
+  最终使用的路径、版本与设置指引（未检测到时可一键前往 FFmpeg 官网下载页、选择目录或清空设置、打开 bin 目录）。
 - **页脚信息**：作者与联系方式、免责声明、技术栈（Wails · FFmpeg / libx264 · React 19 · TypeScript ·
   Vite）。
 
@@ -98,19 +98,19 @@ wails build   # 产物：build/bin/xxx.exe
 
 ## 代码结构
 
-| 文件                                      | 作用                                                                                     |
-| ----------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `app.go`                                  | 绑定给前端的方法：ffmpeg/ffprobe 检测、文件/目录对话框、媒体探测、在资源管理器中定位输出 |
-| `media.go`                                | `ffprobe` JSON 解析与人类可读格式化、风险提示                                            |
-| `ffmpeg.go`                               | 工具定位逻辑 `resolveToolSet` 与逐源检测 `ToolDetection`（用户设置 / 程序 bin / PATH）   |
-| `settings.go`                             | 用户设置（FFmpegDir）的读写，持久化于用户配置目录的 `settings.json`                      |
-| `transcode.go`                            | 命令行构建、后台任务、`-progress` 解析、事件推送、取消与清理                             |
-| `process_windows.go` / `process_other.go` | 隐藏子进程控制台窗口、打开文件管理器                                                     |
-| `transcode_test.go`                       | 端到端测试（真实调用 ffmpeg，校验 faststart、取消清理等）                                |
-| `frontend/src/main.tsx` / `App.tsx`       | React 界面（含明暗主题、检测横幅三态与详情弹窗）                                         |
-| `frontend/src/DetectModal.tsx`            | ffmpeg 检测详情弹窗                                                                      |
-| `frontend/src/api.ts`                     | 对 `window.go.main.App` 的类型化封装                                                     |
-| `frontend/src/types.ts`                   | 与 Go 返回值对应的类型定义                                                               |
+| 文件                                      | 作用                                                                                                                        |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `app.go`                                  | 绑定给前端的方法：ffmpeg/ffprobe 检测、文件/目录对话框、媒体探测、在资源管理器中定位输出                                    |
+| `media.go`                                | `ffprobe` JSON 解析与人类可读格式化、风险提示                                                                               |
+| `ffmpeg.go`                               | 工具定位逻辑 `resolveToolSet` 与逐源检测 `ToolDetection`（用户设置 / 程序 bin / PATH）                                      |
+| `settings.go`                             | 用户设置（FFmpegDir）的读写，持久化于用户配置目录下的子目录（子目录名取自 `wails.json` 的 `name` 字段）中的 `settings.json` |
+| `transcode.go`                            | 命令行构建、后台任务、`-progress` 解析、事件推送、取消与清理                                                                |
+| `process_windows.go` / `process_other.go` | 隐藏子进程控制台窗口、打开文件管理器                                                                                        |
+| `transcode_test.go`                       | 端到端测试（真实调用 ffmpeg，校验 faststart、取消清理等）                                                                   |
+| `frontend/src/main.tsx` / `App.tsx`       | React 界面（含明暗主题、检测横幅三态与详情弹窗）                                                                            |
+| `frontend/src/DetectModal.tsx`            | ffmpeg 检测详情弹窗                                                                                                         |
+| `frontend/src/api.ts`                     | 对 `window.go.main.App` 的类型化封装                                                                                        |
+| `frontend/src/types.ts`                   | 与 Go 返回值对应的类型定义                                                                                                  |
 
 ## 测试
 
