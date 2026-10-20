@@ -112,6 +112,9 @@ function InfoSection({
   );
 }
 
+/** 可选的界面字体大小（px），16 为标准。 */
+const FONT_SIZES = [14, 16, 18, 20];
+
 export default function App() {
   const [state, setState] = useState<AppState>(INITIAL);
   const [theme, setTheme] = useState<'light' | 'dark'>(() =>
@@ -119,6 +122,11 @@ export default function App() {
       ? 'dark'
       : 'light',
   );
+  const [fontSize, setFontSize] = useState<number>(() => {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('fontSize') : null;
+    const n = raw === null ? NaN : Number(raw);
+    return FONT_SIZES.includes(n) ? n : 16;
+  });
   const logBoxRef = useRef<HTMLPreElement | null>(null);
   const planToken = useRef(0);
   const stateRef = useRef(state);
@@ -136,6 +144,23 @@ export default function App() {
 
   const toggleTheme = useCallback(() => {
     setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
+  }, []);
+
+  // 字体大小：写入根字号变量，界面所有 rem 字号随之整体缩放。
+  useEffect(() => {
+    document.documentElement.style.setProperty('--ui-font-size', `${fontSize}px`);
+    try {
+      localStorage.setItem('fontSize', String(fontSize));
+    } catch {
+      // 忽略隐私模式下的写入失败。
+    }
+  }, [fontSize]);
+
+  const cycleFontSize = useCallback(() => {
+    setFontSize((prev) => {
+      const i = FONT_SIZES.indexOf(prev);
+      return FONT_SIZES[(i + 1) % FONT_SIZES.length];
+    });
   }, []);
 
   const patch = useCallback((p: Partial<AppState>) => {
@@ -636,16 +661,28 @@ export default function App() {
 
   return (
     <div className="shell">
-      <button
-        className="theme-toggle"
-        onClick={() => toggleTheme()}
-        type="button"
-        title={theme === 'light' ? '切换到暗色' : '切换到亮色'}
-        aria-label="切换主题"
-      >
-        <span className="ic">{theme === 'light' ? '🌙' : '☀️'}</span>
-        <span>{theme === 'light' ? '暗色' : '亮色'}</span>
-      </button>
+      <div className="top-actions">
+        <button
+          className="font-size-toggle"
+          onClick={() => cycleFontSize()}
+          type="button"
+          title={`字体大小：${fontSize}px（点击切换，标准 16px）`}
+          aria-label="切换字体大小"
+        >
+          <span className="ic">A</span>
+          <span>{fontSize}px</span>
+        </button>
+        <button
+          className="theme-toggle"
+          onClick={() => toggleTheme()}
+          type="button"
+          title={theme === 'light' ? '切换到暗色' : '切换到亮色'}
+          aria-label="切换主题"
+        >
+          <span className="ic">{theme === 'light' ? '🌙' : '☀️'}</span>
+          <span>{theme === 'light' ? '暗色' : '亮色'}</span>
+        </button>
+      </div>
 
       <header className="hero">
         <h1>

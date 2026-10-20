@@ -1,4 +1,8 @@
 :root {
+  /* 标准字体大小：16px 为基准。界面字号以 rem 表示，因此改这个值即可整体缩放。 */
+  --ui-font-size: 16px;
+  font-size: var(--ui-font-size);
+
   /* 亮色（默认） */
   --bg: #f3f5fa;
   --card: #ffffff;
@@ -89,15 +93,22 @@
   text-align: left;
 }
 
-.theme-toggle {
+.top-actions {
   position: absolute;
   top: 24px;
   right: 24px;
   display: inline-flex;
   align-items: center;
+  gap: 8px;
+}
+
+.theme-toggle,
+.font-size-toggle {
+  display: inline-flex;
+  align-items: center;
   gap: 6px;
   font: inherit;
-  font-size: 12px;
+  font-size: 0.75rem;
   padding: 6px 12px;
   border-radius: 999px;
   border: 1px solid var(--line);
@@ -107,13 +118,15 @@
   transition: background 0.15s, border-color 0.15s;
 }
 
-.theme-toggle:hover {
+.theme-toggle:hover,
+.font-size-toggle:hover {
   background: var(--hover-bg);
   border-color: var(--hover-border);
 }
 
-.theme-toggle .ic {
-  font-size: 14px;
+.theme-toggle .ic,
+.font-size-toggle .ic {
+  font-size: 0.875rem;
   line-height: 1;
 }
 
@@ -123,7 +136,7 @@
 
 .hero h1 {
   margin: 0;
-  font-size: 24px;
+  font-size: 1.5rem;
   font-weight: 700;
   letter-spacing: 0.4px;
   display: flex;
@@ -132,7 +145,7 @@
 }
 
 .hero .tag {
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   padding: 3px 8px;
   border-radius: 999px;
@@ -144,7 +157,7 @@
 .hero-sub {
   margin: 6px 0 0;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 /* ---------- 卡片 ---------- */
@@ -162,7 +175,7 @@
 
 .card-title {
   margin: 0 0 14px;
-  font-size: 15px;
+  font-size: 0.9375rem;
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -175,7 +188,7 @@
   border-radius: 50%;
   background: rgba(76, 154, 255, 0.16);
   color: var(--accent);
-  font-size: 12px;
+  font-size: 0.75rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -192,7 +205,7 @@
 
 .btn {
   font: inherit;
-  font-size: 12px;
+  font-size: 0.75rem;
   padding: 8px 12px;
   border-radius: 4px;
   border: 1px solid var(--line);
@@ -240,7 +253,7 @@
 
 .input {
   font: inherit;
-  font-size: 13px;
+  font-size: 0.8125rem;
   flex: 1 1 320px;
   min-width: 0;
   padding: 8px 10px;
@@ -251,7 +264,7 @@
 }
 
 .file-label {
-  font-size: 13px;
+  font-size: 0.8125rem;
   overflow-wrap: anywhere;
 }
 
@@ -261,7 +274,7 @@
 
 .hint {
   margin-top: 8px;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--muted);
   line-height: 1.55;
 }
@@ -276,7 +289,7 @@
   background: var(--inline-code-bg);
   padding: 1px 5px;
   border-radius: 4px;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 .field + .field {
@@ -286,7 +299,7 @@
 }
 
 .field-label {
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   margin-bottom: 8px;
 }
@@ -297,7 +310,7 @@
   border-radius: 10px;
   padding: 10px 14px;
   margin-bottom: 14px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1.6;
   border: 1px solid var(--line);
   background: var(--card);
@@ -337,7 +350,7 @@
   border-radius: 10px;
   padding: 10px 14px;
   margin: 14px 0;
-  font-size: 12.5px;
+  font-size: 0.78125rem;
   line-height: 1.6;
 }
 
@@ -369,7 +382,7 @@
 }
 
 .info-section-title {
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 700;
   color: var(--accent);
   letter-spacing: 0.5px;
@@ -380,7 +393,7 @@
   display: grid;
   grid-template-columns: minmax(78px, auto) 1fr;
   gap: 6px 12px;
-  font-size: 12.5px;
+  font-size: 0.78125rem;
 }
 
 .info-rows .k {
@@ -421,12 +434,12 @@
 }
 
 .crf-opt b {
-  font-size: 20px;
+  font-size: 1.25rem;
   font-weight: 700;
 }
 
 .crf-opt span {
-  font-size: 11.5px;
+  font-size: 0.71875rem;
   color: var(--muted);
   text-align: center;
   line-height: 1.4;
@@ -453,7 +466,7 @@
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1.5;
   cursor: pointer;
 }
@@ -477,13 +490,13 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--muted);
 }
 
 .select-box select {
   font: inherit;
-  font-size: 13px;
+  font-size: 0.8125rem;
   padding: 8px 10px;
   border-radius: 8px;
   border: 1px solid var(--line);
@@ -500,7 +513,7 @@
 .btn.tiny {
   margin-left: 10px;
   padding: 3px 10px;
-  font-size: 12px;
+  font-size: 0.75rem;
   border-radius: 6px;
   vertical-align: middle;
 }
@@ -518,7 +531,7 @@
   border: 1px solid var(--line);
   background: var(--code-bg);
   color: var(--cmd-fg);
-  font-size: 12.5px;
+  font-size: 0.78125rem;
   line-height: 1.65;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -526,7 +539,7 @@
 
 .notes {
   margin-top: 10px;
-  font-size: 12.5px;
+  font-size: 0.78125rem;
   color: var(--warn-text);
   line-height: 1.6;
 }
@@ -577,7 +590,7 @@
   gap: 10px;
   flex-wrap: wrap;
   margin-top: 8px;
-  font-size: 12.5px;
+  font-size: 0.78125rem;
 }
 
 .pct {
@@ -619,7 +632,7 @@
 .log summary {
   cursor: pointer;
   padding: 9px 14px;
-  font-size: 12.5px;
+  font-size: 0.78125rem;
   color: var(--muted);
   user-select: none;
 }
@@ -634,7 +647,7 @@
   max-height: 240px;
   overflow: auto;
   font-family: 'Cascadia Mono', Consolas, 'Courier New', monospace;
-  font-size: 11.5px;
+  font-size: 0.71875rem;
   line-height: 1.55;
   color: var(--log-fg);
   white-space: pre-wrap;
@@ -699,7 +712,7 @@
   color: inherit;
   font-family: Georgia, 'Times New Roman', serif;
   font-style: italic;
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1;
   cursor: pointer;
   display: inline-flex;
@@ -759,13 +772,13 @@
 
 .modal-head h3 {
   margin: 0;
-  font-size: 17px;
+  font-size: 1.0625rem;
   font-weight: 700;
 }
 
 .modal-close {
   font: inherit;
-  font-size: 20px;
+  font-size: 1.25rem;
   line-height: 1;
   width: 28px;
   height: 28px;
@@ -783,7 +796,7 @@
 
 .modal-body {
   padding: 0 20px 20px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1.65;
 }
 
@@ -792,7 +805,7 @@
   align-items: center;
   gap: 8px;
   margin-bottom: 12px;
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 
 .detect-state.ok {
@@ -834,7 +847,7 @@
 }
 
 .detect-sub {
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--muted);
   margin: 16px 0 8px;
@@ -855,7 +868,7 @@
 .detect-steps code,
 .detect-desc code {
   font-family: 'Cascadia Mono', Consolas, 'Courier New', monospace;
-  font-size: 12px;
+  font-size: 0.75rem;
   background: var(--inline-code-bg);
   padding: 1px 5px;
   border-radius: 4px;
@@ -886,7 +899,7 @@
   border-radius: 8px;
   background: var(--info-bg);
   border: 1px solid var(--line);
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 .src-label {
@@ -915,7 +928,7 @@
 .app-foot {
   padding: 0 56px;
   border-top: 1px solid var(--line);
-  font-size: 12px;
+  font-size: 0.75rem;
   text-align: center;
 }
 
