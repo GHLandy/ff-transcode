@@ -975,6 +975,9 @@ export default function App() {
           </a>
         </p>
         <p className="tech">基于 Wails · FFmpeg / libx264 · React 19 · TypeScript · Vite 构建</p>
+        <p className="buildinfo">
+          版本 {__APP_VERSION__} <span className="sep">·</span> 构建 {__BUILD_TIME__}
+        </p>
         <p className="disclaimer">
           免责声明：本工具按原样提供，用于本地视频转码，不随软件分发 FFmpeg
           二进制（须由用户自行配置）；不对转码结果、源文件损坏或版权问题承担责任，使用本工具请遵守当地法律法规及
