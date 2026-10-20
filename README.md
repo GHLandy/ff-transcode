@@ -1,4 +1,10 @@
-# 视频转码（ff-transcode）
+<p align="center">
+  <img alt="logo" src="build/appicon.png" width="200">
+</p>
+
+<h1 align="center">
+视频转码（ff-transcode）
+</h1>
 
 用 Wails v2 + Go 做界面调用 FFmpeg 的转码工具：选择视频文件 → 显示原始编码信息 → 选择 CRF（以及
 Profile / Level）→ 转码为浏览器兼容的 H.264 / MP4（默认 `high` profile、`level 4.1`、`yuv420p`、
@@ -120,3 +126,26 @@ wails build   # 产物：build/bin/xxx.exe
 go test ./...        # 需要 PATH 上有 ffmpeg/ffprobe，缺省时自动跳过
 go test -short ./... # 只跑不依赖 ffmpeg 的用例
 ```
+
+## License
+
+本项目自身的源代码采用 **MIT License**，详见 [LICENSE.md](LICENSE.md)
+（Copyright (c) 2026 - present GHLandy）。软件按「原样」提供（AS IS），不含任何明示或
+暗示的担保。
+
+### 第三方组件：FFmpeg
+
+本项目**不随附** FFmpeg / FFprobe 二进制，也不提供自动下载；仅在运行时以独立进程方式
+调用用户自行准备的 `ffmpeg` / `ffprobe`（查找优先级见「环境要求」）。这种进程调用不构成
+与 FFmpeg 的衍生作品关系，因此本项目自身得以保持 MIT 授权，无需改用 GPL。
+
+FFmpeg 的许可证取决于用户自行下载的构建版本，与本项目无关：
+
+- FFmpeg 常见 Windows 构建（如 [gyan.dev](https://www.gyan.dev/ffmpeg/builds/) 的
+  `essentials_build` / `full_build`）因启用 `libx264` 等组件，通常为 **GPLv3**；
+  本项目默认使用 `libx264`，故请下载包含 `libx264` 的构建（GPL 版本）。
+- 若改用 LGPL 构建（不含 libx264），则需相应更换编码器（如 `libopenh264`），
+  编码质量与参数与 `libx264` 并不等同。
+- FFmpeg 许可证说明：<https://ffmpeg.org/legal.html>　源码：<https://github.com/FFmpeg/FFmpeg>
+
+使用本工具时，请自行遵守所用 FFmpeg 构建的许可证要求，并遵守当地法律法规。
