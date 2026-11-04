@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -35,6 +36,10 @@ type MediaInfo struct {
 	AudioCompatible bool `json:"audioCompatible"`
 	// BitmapSubtitles 列出 MP4 无法承载的图形字幕编码。
 	BitmapSubtitles []string `json:"bitmapSubtitles"`
+	// TextSubtitleCodecs 列出可以转为 mov_text 保留的文本字幕编码。
+	TextSubtitleCodecs []string `json:"textSubtitleCodecs"`
+	// BitmapSubtitleIndexes 是图形字幕的全局流索引，供 -map 精确排除。
+	BitmapSubtitleIndexes []int `json:"bitmapSubtitleIndexes"`
 }
 
 // VideoInfo 描述视频流的关键编码参数。
@@ -55,6 +60,8 @@ type VideoInfo struct {
 	ColorInfo    string `json:"colorInfo"`
 	ScanType     string `json:"scanType"`
 	DurationText string `json:"durationText"`
+	// HdrHint 非空时说明源视频的高位深 / HDR 信息会在固定的 8 bit SDR 输出中丢失。
+	HdrHint string `json:"hdrHint"`
 	// RecommendedLevel 是编码该分辨率/帧率所需的最低 H.264 等级。
 	RecommendedLevel     string `json:"recommendedLevel"`
 	RecommendedLevelHint string `json:"recommendedLevelHint"`
@@ -115,9 +122,35 @@ type ffprobeStream struct {
 	Duration         string `json:"duration"`
 }
 
+// mediaCache 按「路径 + 大小 + 修改时间」缓存探测结果。选文件、命令预览、
+// 开始转码都会用到同一份媒体信息，缓存可避免反复启动 ffprobe。
+var (
+	mediaCacheMu sync.RWMutex
+	mediaCache   = make(map[string]*MediaInfo)
+)
+
+// mediaCacheKey 生成缓存键；无法 stat 时返回空串表示不缓存。
+func mediaCacheKey(path string) string {
+	st, err := os.Stat(path)
+	if err != nil {
+		return ""
+	}
+	return fmt.Sprintf("%s|%d|%d", path, st.Size(), st.ModTime().UnixNano())
+}
+
 // probeMedia 调用 ffprobe 读取文件的媒体信息。
 func probeMedia(ctx context.Context, path string) (*MediaInfo, error) {
-	_, ffprobe, _ := resolveToolSet(currentSettings())
+	key := mediaCacheKey(path)
+	if key != "" {
+		mediaCacheMu.RLock()
+		cached, ok := mediaCache[key]
+		mediaCacheMu.RUnlock()
+		if ok {
+			return cached, nil
+		}
+	}
+
+	_, ffprobe := cachedToolPaths(currentSettings())
 	if ffprobe == "" {
 		return nil, errors.New("未找到 ffprobe，请安装 FFmpeg，或在设置中手动指定 ffmpeg 位置")
 	}
@@ -150,20 +183,33 @@ func probeMedia(ctx context.Context, path string) (*MediaInfo, error) {
 		return nil, fmt.Errorf("解析 ffprobe 输出失败：%w", err)
 	}
 
-	return buildMediaInfo(path, &raw), nil
+	info := buildMediaInfo(path, &raw)
+	if key != "" {
+		mediaCacheMu.Lock()
+		// 简单限流：缓存过大时整体清空，避免长期运行持续累积。
+		if len(mediaCache) >= 32 {
+			mediaCache = make(map[string]*MediaInfo)
+		}
+		mediaCache[key] = info
+		mediaCacheMu.Unlock()
+	}
+	return info, nil
 }
 
 func buildMediaInfo(path string, raw *ffprobeResult) *MediaInfo {
 	info := &MediaInfo{
-		Path:            path,
-		FileName:        filepath.Base(path),
-		Container:       raw.Format.FormatName,
-		ContainerLong:   raw.Format.FormatLongName,
-		DurationSec:     parseFloat(raw.Format.Duration),
-		SizeBytes:       int64(parseFloat(raw.Format.Size)),
-		Warnings:        []string{},
-		AudioCodecs:     []string{},
-		AudioCompatible: true,
+		Path:                  path,
+		FileName:              filepath.Base(path),
+		Container:             raw.Format.FormatName,
+		ContainerLong:         raw.Format.FormatLongName,
+		DurationSec:           parseFloat(raw.Format.Duration),
+		SizeBytes:             int64(parseFloat(raw.Format.Size)),
+		Warnings:              []string{},
+		AudioCodecs:           []string{},
+		AudioCompatible:       true,
+		BitmapSubtitles:       []string{},
+		TextSubtitleCodecs:    []string{},
+		BitmapSubtitleIndexes: []int{},
 	}
 
 	if st, err := os.Stat(path); err == nil && info.SizeBytes == 0 {
@@ -201,8 +247,12 @@ func buildMediaInfo(path string, raw *ffprobeResult) *MediaInfo {
 			}
 		case "subtitle":
 			info.SubtitleTracks++
-			if isBitmapSubtitle(s.CodecName) {
-				info.BitmapSubtitles = append(info.BitmapSubtitles, strings.ToLower(s.CodecName))
+			codec := strings.ToLower(s.CodecName)
+			if isBitmapSubtitle(codec) {
+				info.BitmapSubtitles = append(info.BitmapSubtitles, codec)
+				info.BitmapSubtitleIndexes = append(info.BitmapSubtitleIndexes, s.Index)
+			} else if codec != "" {
+				info.TextSubtitleCodecs = append(info.TextSubtitleCodecs, codec)
 			}
 		}
 	}
@@ -249,6 +299,7 @@ func buildVideoInfo(s *ffprobeStream) *VideoInfo {
 		v.AspectRatio = reduceRatio(s.Width, s.Height)
 	}
 	v.ColorInfo = joinNonEmpty(" / ", s.ColorSpace, s.ColorTransfer, s.ColorPrimaries)
+	v.HdrHint = hdrRiskText(s)
 	v.DurationText = formatDuration(parseFloat(s.Duration))
 	v.RecommendedLevel, v.RecommendedLevelHint = recommendLevel(s.Width, s.Height, frameRateValue(s.AvgFrameRate, s.RFrameRate))
 	return v
@@ -300,15 +351,26 @@ func buildWarnings(info *MediaInfo) []string {
 			defaultLevel, rec))
 	}
 
+	if info.Video.HdrHint != "" {
+		warnings = append(warnings, info.Video.HdrHint)
+	}
+
 	if info.Video.Width%2 != 0 || info.Video.Height%2 != 0 {
 		warnings = append(warnings, fmt.Sprintf(
 			"分辨率 %s 含奇数边长，yuv420p 要求宽高均为偶数，转码可能失败。", info.Video.Resolution))
 	}
 
 	if len(info.BitmapSubtitles) > 0 {
-		warnings = append(warnings, fmt.Sprintf(
-			"源文件含图形字幕（%s），MP4 无法承载，将自动加 -sn 丢弃字幕。",
-			strings.ToUpper(strings.Join(info.BitmapSubtitles, ", "))))
+		if len(info.TextSubtitleCodecs) > 0 {
+			warnings = append(warnings, fmt.Sprintf(
+				"源文件含图形字幕（%s），MP4 无法承载；将只排除这些字幕轨，其余 %d 条文本字幕（%s）会转为 mov_text 保留。",
+				strings.ToUpper(strings.Join(info.BitmapSubtitles, ", ")),
+				len(info.TextSubtitleCodecs), strings.ToUpper(strings.Join(info.TextSubtitleCodecs, ", "))))
+		} else {
+			warnings = append(warnings, fmt.Sprintf(
+				"源文件含图形字幕（%s），MP4 无法承载，这些字幕轨将被排除。",
+				strings.ToUpper(strings.Join(info.BitmapSubtitles, ", "))))
+		}
 	}
 
 	if strings.EqualFold(info.Video.Codec, "h264") &&
@@ -439,6 +501,56 @@ func codecLevelText(codec string, level int) string {
 	default:
 		return strconv.Itoa(level)
 	}
+}
+
+// hdrRiskText 判断源视频的高位深 / HDR 信息是否会在固定的 8 bit SDR 输出中丢失。
+func hdrRiskText(s *ffprobeStream) string {
+	bits := bitDepthBits(s.PixFmt, s.BitsPerRawSample)
+	transfer := strings.ToLower(strings.TrimSpace(s.ColorTransfer))
+	primaries := strings.ToLower(strings.TrimSpace(s.ColorPrimaries))
+	hdr := transfer == "smpte2084" || transfer == "arib-std-b67" ||
+		(primaries == "bt2020" && bits >= 10)
+	color := joinNonEmpty(" / ", s.ColorTransfer, s.ColorPrimaries)
+	if color == "" {
+		color = "色彩标记"
+	}
+
+	switch {
+	case hdr && bits > 8:
+		return fmt.Sprintf(
+			"源视频是 %d bit HDR（%s）。本工具强制 -pix_fmt yuv420p（8 bit SDR），HDR 元数据与高位深都会丢失，画面可能明显发灰或过曝；这是「浏览器兼容 H.264 / MP4」目标的取舍，如需保留 HDR 请改用支持 10 bit / HEVC 的工具。",
+			bits, color)
+	case hdr:
+		return fmt.Sprintf(
+			"源视频带 HDR 色彩标记（%s），输出不会写入 HDR 元数据，播放器将按 SDR 显示，画面可能发灰；如需保留 HDR 请改用支持 10 bit / HEVC 的工具。",
+			color)
+	case bits > 8:
+		return fmt.Sprintf(
+			"源视频是 %d bit（%s），本工具强制 -pix_fmt yuv420p（8 bit），高位深会被截断，渐变处可能出现色带。",
+			bits, s.PixFmt)
+	default:
+		return ""
+	}
+}
+
+// bitDepthBits 从 ffprobe 字段推断位深，未知时按 8 bit 处理。
+func bitDepthBits(pixFmt, raw string) int {
+	if v, err := strconv.Atoi(strings.TrimSpace(raw)); err == nil && v >= 8 {
+		return v
+	}
+	switch {
+	case strings.HasPrefix(pixFmt, "nv12"), strings.HasPrefix(pixFmt, "nv21"):
+		return 8
+	case strings.Contains(pixFmt, "16"):
+		return 16
+	case strings.Contains(pixFmt, "12"):
+		return 12
+	case strings.Contains(pixFmt, "10"):
+		return 10
+	case strings.Contains(pixFmt, "9"):
+		return 9
+	}
+	return 8
 }
 
 func bitDepthText(pixFmt, raw string) string {

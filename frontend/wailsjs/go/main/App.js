@@ -18,6 +18,10 @@ export function ClearFFmpegSetting() {
   return window['go']['main']['App']['ClearFFmpegSetting']();
 }
 
+export function ConfirmOverwrite(arg1) {
+  return window['go']['main']['App']['ConfirmOverwrite'](arg1);
+}
+
 export function GetPresets() {
   return window['go']['main']['App']['GetPresets']();
 }

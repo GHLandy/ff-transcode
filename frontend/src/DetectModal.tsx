@@ -37,7 +37,7 @@ export default function DetectModal({
   }, [onClose]);
 
   const ok = detection?.available ?? false;
-  const hasUserSetting = detection?.sources.some((s) => s.kind === 'user' && s.found) ?? false;
+  const hasUserSetting = detection?.hasUserSetting ?? false;
   const binDir = detection?.binDir || '';
 
   return (

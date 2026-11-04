@@ -3,6 +3,7 @@
 package main
 
 import (
+	"os"
 	"os/exec"
 	"syscall"
 )
@@ -19,6 +20,9 @@ func hideWindow() *syscall.SysProcAttr {
 
 // openInFileManager 在资源管理器中打开目录或定位文件。
 func openInFileManager(path string) error {
-	// explorer 对 /select, 的解析比较特殊，参数必须是一个整体。
+	if st, err := os.Stat(path); err == nil && st.IsDir() {
+		return exec.Command("explorer", path).Start()
+	}
+	// /select, 只用于定位文件；对目录使用会打开父目录并选中它，而非进入目录。
 	return exec.Command("explorer", "/select,"+path).Start()
 }

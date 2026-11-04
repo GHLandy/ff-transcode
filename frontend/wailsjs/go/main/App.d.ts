@@ -10,6 +10,8 @@ export function ChooseFFmpeg():Promise<main.ToolDetection>;
 
 export function ClearFFmpegSetting():Promise<main.ToolDetection>;
 
+export function ConfirmOverwrite(arg1:string):Promise<boolean>;
+
 export function GetPresets():Promise<main.TranscodePresets>;
 
 export function GetTranscodeStatus():Promise<main.TranscodeSnapshot>;

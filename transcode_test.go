@@ -502,6 +502,203 @@ func writeStubTool(t *testing.T, dir, name string) {
 	}
 }
 
+// TestHdrRiskWarning 验证 10 bit HDR 源会给出画质风险提示，普通 8 bit SDR 不会。
+func TestHdrRiskWarning(t *testing.T) {
+	hdr := &ffprobeResult{Streams: []ffprobeStream{{
+		Index: 0, CodecType: "video", CodecName: "hevc",
+		Width: 1920, Height: 1080, AvgFrameRate: "30/1",
+		PixFmt: "yuv420p10le", BitsPerRawSample: "10",
+		ColorTransfer: "smpte2084", ColorPrimaries: "bt2020",
+	}}}
+	info := buildMediaInfo("hdr.mp4", hdr)
+	if info.Video == nil || info.Video.HdrHint == "" {
+		t.Fatal("10 bit HDR 源应给出风险提示")
+	}
+	if !containsNote(info.Warnings, "HDR") {
+		t.Errorf("warnings 应包含 HDR 风险说明，实际 %+v", info.Warnings)
+	}
+
+	sdr := &ffprobeResult{Streams: []ffprobeStream{{
+		Index: 0, CodecType: "video", CodecName: "h264",
+		Width: 1920, Height: 1080, AvgFrameRate: "30/1", PixFmt: "yuv420p",
+	}}}
+	plain := buildMediaInfo("sdr.mp4", sdr)
+	if plain.Video.HdrHint != "" {
+		t.Errorf("普通 8 bit SDR 不应有 HDR 提示，实际 %q", plain.Video.HdrHint)
+	}
+}
+
+// TestSubtitleClassification 验证图形字幕与可保留文本字幕被分别记录。
+func TestSubtitleClassification(t *testing.T) {
+	raw := &ffprobeResult{Streams: []ffprobeStream{
+		{Index: 0, CodecType: "video", CodecName: "h264", Width: 320, Height: 240, AvgFrameRate: "25/1", PixFmt: "yuv420p"},
+		{Index: 1, CodecType: "audio", CodecName: "aac"},
+		{Index: 2, CodecType: "subtitle", CodecName: "hdmv_pgs_subtitle"},
+		{Index: 3, CodecType: "subtitle", CodecName: "subrip"},
+	}}
+	info := buildMediaInfo("clip.mkv", raw)
+	if len(info.BitmapSubtitles) != 1 || len(info.BitmapSubtitleIndexes) != 1 || info.BitmapSubtitleIndexes[0] != 2 {
+		t.Errorf("图形字幕应记录为流索引 2，实际 %+v / %+v", info.BitmapSubtitles, info.BitmapSubtitleIndexes)
+	}
+	if len(info.TextSubtitleCodecs) != 1 || info.TextSubtitleCodecs[0] != "subrip" {
+		t.Errorf("文本字幕应单独记录，实际 %+v", info.TextSubtitleCodecs)
+	}
+	if !containsNote(info.Warnings, "mov_text") {
+		t.Errorf("混合字幕应提示文本字幕转为 mov_text，实际 %+v", info.Warnings)
+	}
+}
+
+// TestBuildPlanMapsSubtitlesPrecisely 验证含图形字幕时用 -map 精确排除，
+// 文本字幕以 mov_text 保留，不再一刀切 -sn。
+func TestBuildPlanMapsSubtitlesPrecisely(t *testing.T) {
+	requireFFmpeg(t)
+	dir := t.TempDir()
+	sample := makeSampleVideo(t, dir, "sample.mp4")
+
+	// 直接预填探测缓存，让 buildPlan 使用含图形字幕的媒体信息。
+	key := mediaCacheKey(sample)
+	if key == "" {
+		t.Fatal("无法生成探测缓存键")
+	}
+	fake := &MediaInfo{
+		Video:                 &VideoInfo{Index: 0, Width: 320, Height: 240, FrameRate: "25"},
+		AudioCompatible:       true,
+		BitmapSubtitles:       []string{"hdmv_pgs_subtitle"},
+		BitmapSubtitleIndexes: []int{2},
+		TextSubtitleCodecs:    []string{"subrip"},
+		Warnings:              []string{},
+	}
+	mediaCacheMu.Lock()
+	previous, hadPrevious := mediaCache[key]
+	mediaCache[key] = fake
+	mediaCacheMu.Unlock()
+	defer func() {
+		mediaCacheMu.Lock()
+		if hadPrevious {
+			mediaCache[key] = previous
+		} else {
+			delete(mediaCache, key)
+		}
+		mediaCacheMu.Unlock()
+	}()
+
+	plan, err := buildPlan(TranscodeOptions{
+		SourcePath: sample,
+		CRF:        18,
+		AudioMode:  "copy",
+		Profile:    defaultProfile,
+		Level:      defaultLevel,
+	})
+	if err != nil {
+		t.Fatalf("buildPlan 失败：%v", err)
+	}
+	for _, want := range []string{"-map", "-0:2", "-c:s", "mov_text"} {
+		if !containsArg(plan.Args, want) {
+			t.Errorf("命令缺少参数 %q：%s", want, plan.CommandLine)
+		}
+	}
+	if containsArg(plan.Args, "-sn") {
+		t.Errorf("不应再一刀切丢弃字幕：%s", plan.CommandLine)
+	}
+	if !containsNote(plan.Notes, "mov_text") {
+		t.Errorf("应说明文本字幕会转为 mov_text，实际 %+v", plan.Notes)
+	}
+}
+
+// TestBuildPlanDetectsExistingOutput 验证输出文件已存在时命令预览会标记，供前端二次确认。
+func TestBuildPlanDetectsExistingOutput(t *testing.T) {
+	requireFFmpeg(t)
+	dir := t.TempDir()
+	sample := makeSampleVideo(t, dir, "sample.mp4")
+	outDir := filepath.Join(dir, "output")
+	if err := os.MkdirAll(outDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(outDir, "sample.mp4"), []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	plan, err := buildPlan(TranscodeOptions{
+		SourcePath: sample,
+		CRF:        defaultCRF,
+		AudioMode:  "copy",
+		Profile:    defaultProfile,
+		Level:      defaultLevel,
+	})
+	if err != nil {
+		t.Fatalf("buildPlan 失败：%v", err)
+	}
+	if !plan.OutputExists {
+		t.Error("输出文件已存在时应标记 OutputExists")
+	}
+}
+
+// TestDetectToolsReportsInvalidUserSetting 验证无效的用户设置仍会显示「清除设置」。
+func TestDetectToolsReportsInvalidUserSetting(t *testing.T) {
+	empty := t.TempDir()
+	t.Setenv("PATH", empty)
+	det := detectTools(AppSettings{FFmpegDir: empty})
+	if !det.HasUserSetting {
+		t.Error("手动指定过目录时应标记 HasUserSetting")
+	}
+	if det.Available {
+		t.Error("空目录不应判定为可用")
+	}
+}
+
+// TestProbeMediaCacheKeyChangesWithFile 验证文件变化后探测缓存不会返回陈旧结果。
+func TestProbeMediaCacheKeyChangesWithFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "clip.mp4")
+	if err := os.WriteFile(path, []byte("a"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	first := mediaCacheKey(path)
+	if first == "" {
+		t.Fatal("应生成探测缓存键")
+	}
+	if err := os.WriteFile(path, []byte("much longer content"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if second := mediaCacheKey(path); first == second {
+		t.Error("文件大小变化后缓存键应改变")
+	}
+}
+
+// TestSaveSettingsAtomicWrite 验证设置可重复覆盖写入且不留临时文件。
+func TestSaveSettingsAtomicWrite(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, settingsFileName)
+
+	settingsMu.Lock()
+	previous := settingsPath
+	settingsPath = path
+	settingsMu.Unlock()
+	defer func() {
+		settingsMu.Lock()
+		settingsPath = previous
+		settingsMu.Unlock()
+	}()
+
+	for _, want := range []string{"first", "second"} {
+		if err := saveSettings(AppSettings{FFmpegDir: want}); err != nil {
+			t.Fatalf("保存设置失败（%s）：%v", want, err)
+		}
+		if got := loadSettings().FFmpegDir; got != want {
+			t.Errorf("设置应为 %s，实际 %s", want, got)
+		}
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if strings.Contains(entry.Name(), ".tmp") {
+			t.Errorf("不应残留临时文件：%s", entry.Name())
+		}
+	}
+}
+
 // ---- 测试辅助 ----
 
 func waitForJob(t *testing.T, app *App, timeout time.Duration) TranscodeSnapshot {

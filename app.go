@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -55,6 +56,21 @@ func (a *App) baseContext() context.Context {
 		return a.ctx
 	}
 	return context.Background()
+}
+
+// ConfirmOverwrite 在输出文件已存在时弹确认框，返回用户是否同意覆盖。
+func (a *App) ConfirmOverwrite(path string) (bool, error) {
+	res, err := runtime.MessageDialog(a.baseContext(), runtime.MessageDialogOptions{
+		Type:          runtime.QuestionDialog,
+		Title:         "输出文件已存在",
+		Message:       fmt.Sprintf("以下文件已存在，继续转码会覆盖它：\n\n%s\n\n确定要继续吗？", path),
+		DefaultButton: "No",
+	})
+	if err != nil {
+		return false, err
+	}
+	// Windows 的 QuestionDialog 返回 "Yes" / "No"；其他平台可能返回自定义按钮文案。
+	return strings.EqualFold(res, "Yes") || strings.EqualFold(res, "Ok"), nil
 }
 
 // ---- 环境检测 ----

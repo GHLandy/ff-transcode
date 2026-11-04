@@ -129,6 +129,8 @@ export default function App() {
   });
   const logBoxRef = useRef<HTMLPreElement | null>(null);
   const planToken = useRef(0);
+  const planTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingOverrides = useRef<Partial<TranscodeOptions>>({});
   const stateRef = useRef(state);
   stateRef.current = state;
 
@@ -195,6 +197,7 @@ export default function App() {
           message: `检测失败：${errorText(err)}`,
           sources: [],
           binDir: '',
+          hasUserSetting: false,
         },
         toolPhase: 'missing',
       }));
@@ -297,6 +300,12 @@ export default function App() {
   // overrides 把本次事件刚修改、React 尚未渲染的值直接带入预览，避免
   // stateRef.current 滞后一拍导致「命令预览」显示上一次的参数。
   const refreshPlan = useCallback(async (overrides: Partial<TranscodeOptions> = {}) => {
+    // 立即刷新时取消挂起的防抖任务，避免稍后的旧请求覆盖最新结果。
+    if (planTimer.current !== null) {
+      clearTimeout(planTimer.current);
+      planTimer.current = null;
+      pendingOverrides.current = {};
+    }
     const cur = stateRef.current;
     const opts: TranscodeOptions = {
       sourcePath: cur.sourcePath,
@@ -336,12 +345,29 @@ export default function App() {
     }
   }, [patch]);
 
+  // 参数控件连续调整时合并成一次预览请求，减少 IPC 与重复的后端探测。
+  const schedulePlanRefresh = useCallback(
+    (overrides: Partial<TranscodeOptions>) => {
+      pendingOverrides.current = { ...pendingOverrides.current, ...overrides };
+      if (planTimer.current !== null) {
+        clearTimeout(planTimer.current);
+      }
+      planTimer.current = setTimeout(() => {
+        planTimer.current = null;
+        const opts = pendingOverrides.current;
+        pendingOverrides.current = {};
+        void refreshPlan(opts);
+      }, 150);
+    },
+    [refreshPlan],
+  );
+
   const selectLevel = useCallback(
     (level: string) => {
       patch({ level });
-      void refreshPlan({ level });
+      schedulePlanRefresh({ level });
     },
-    [patch, refreshPlan],
+    [patch, schedulePlanRefresh],
   );
 
   // ---------- 交互 ----------
@@ -397,6 +423,19 @@ export default function App() {
     const cur = stateRef.current;
     if (!cur.sourcePath || cur.running) {
       return;
+    }
+    // 输出文件已存在时先让用户确认，避免 -y 静默覆盖上一次的转码结果。
+    if (cur.plan?.outputExists) {
+      let confirmed = false;
+      try {
+        confirmed = await api.confirmOverwrite(cur.plan.outputPath);
+      } catch (err) {
+        setStatus(`确认失败：${errorText(err)}`, 'error');
+        return;
+      }
+      if (!confirmed) {
+        return;
+      }
     }
     patch({ logs: [], progress: { percent: 0, stats: '', indeterminate: false } });
     setStatus('正在启动 ffmpeg…', 'busy');
@@ -554,6 +593,10 @@ export default function App() {
     })();
 
     return () => {
+      if (planTimer.current !== null) {
+        clearTimeout(planTimer.current);
+        planTimer.current = null;
+      }
       offProgress();
       offLog();
       offDone();
@@ -798,7 +841,7 @@ export default function App() {
                   }
                   const crf = Number(item.value);
                   setState((prev) => ({ ...prev, crf }));
-                  void refreshPlan({ crf });
+                  schedulePlanRefresh({ crf });
                 }}
                 type="button"
               >
@@ -823,7 +866,7 @@ export default function App() {
                 onChange={(e) => {
                   const profile = e.target.value;
                   setState((prev) => ({ ...prev, profile }));
-                  void refreshPlan({ profile });
+                  schedulePlanRefresh({ profile });
                 }}
               >
                 {state.presets?.profiles.map((p) => (
@@ -862,7 +905,7 @@ export default function App() {
               onChange={(e) => {
                 const audioAac = e.target.checked;
                 setState((prev) => ({ ...prev, audioAac }));
-                void refreshPlan({ audioMode: audioAac ? 'aac' : 'copy' });
+                schedulePlanRefresh({ audioMode: audioAac ? 'aac' : 'copy' });
               }}
             />
             <span>
@@ -891,7 +934,10 @@ export default function App() {
           </div>
           {state.plan && (
             <div className="hint">
-              输出文件：<code>{state.plan.outputName}</code>（同名文件会被覆盖）
+              输出文件：<code>{state.plan.outputName}</code>
+              {state.plan.outputExists
+                ? '（已存在，开始转码前会二次确认）'
+                : '（同名文件会被覆盖）'}
             </div>
           )}
         </div>

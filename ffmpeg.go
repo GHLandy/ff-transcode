@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	goruntime "runtime"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -43,6 +44,8 @@ type ToolDetection struct {
 	Sources       []DetectSource `json:"sources"`
 	// BinDir 是程序 bin 目录的绝对路径，界面据此提示用户把 ffmpeg 放进去。
 	BinDir string `json:"binDir"`
+	// HasUserSetting 表示用户手动指定过目录（即使该目录当前无效），界面据此显示「清除设置」。
+	HasUserSetting bool `json:"hasUserSetting"`
 }
 
 // toolPair 是同一目录下同时找到的 ffmpeg / ffprobe。
@@ -136,15 +139,58 @@ func pathEnvDirs() []string {
 	return dirs
 }
 
+// toolPathsCache 缓存工具定位结果，避免每次探测都重新扫描整个 PATH。
+// 用户设置变化或用户主动「重新检测」时会失效。
+var (
+	toolPathsMu    sync.Mutex
+	toolPathsKey   string
+	toolPathsPair  toolPair
+	toolPathsValid bool
+)
+
+func cacheToolPaths(settings AppSettings, ffmpeg, ffprobe string) {
+	toolPathsMu.Lock()
+	defer toolPathsMu.Unlock()
+	toolPathsKey = strings.TrimSpace(settings.FFmpegDir)
+	toolPathsPair = toolPair{ffmpeg: ffmpeg, ffprobe: ffprobe}
+	toolPathsValid = true
+}
+
+func invalidateToolPaths() {
+	toolPathsMu.Lock()
+	toolPathsValid = false
+	toolPathsMu.Unlock()
+}
+
+// cachedToolPaths 返回缓存的 ffmpeg / ffprobe 路径；未命中时真实查找并回填缓存。
+func cachedToolPaths(settings AppSettings) (string, string) {
+	key := strings.TrimSpace(settings.FFmpegDir)
+	toolPathsMu.Lock()
+	if toolPathsValid && toolPathsKey == key {
+		pair := toolPathsPair
+		toolPathsMu.Unlock()
+		return pair.ffmpeg, pair.ffprobe
+	}
+	toolPathsMu.Unlock()
+
+	ffmpeg, ffprobe, _ := resolveToolSet(settings)
+	cacheToolPaths(settings, ffmpeg, ffprobe)
+	return ffmpeg, ffprobe
+}
+
 // detectTools 执行一次完整检测，并组装界面所需的全部信息。
 func detectTools(settings AppSettings) ToolDetection {
+	// 「重新检测」必须真实扫描，不读缓存。
+	invalidateToolPaths()
 	ffmpegPath, ffprobePath, sources := resolveToolSet(settings)
+	cacheToolPaths(settings, ffmpegPath, ffprobePath)
 
 	det := ToolDetection{
-		FFmpegPath:  ffmpegPath,
-		FFprobePath: ffprobePath,
-		Sources:     sources,
-		BinDir:      primaryBinDir(),
+		FFmpegPath:     ffmpegPath,
+		FFprobePath:    ffprobePath,
+		Sources:        sources,
+		BinDir:         primaryBinDir(),
+		HasUserSetting: strings.TrimSpace(settings.FFmpegDir) != "",
 	}
 
 	// -version 也可能因用户指定的可执行文件异常而挂起；必须限制等待时间，

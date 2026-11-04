@@ -17,6 +17,8 @@ export interface VideoInfo {
     colorInfo: string;
     scanType: string;
     durationText: string;
+    /** 非空时表示高位深 / HDR 信息会在 8 bit SDR 输出中丢失。 */
+    hdrHint: string;
     /** 编码该分辨率/帧率所需的最低 H.264 等级。 */
     recommendedLevel: string;
     recommendedLevelHint: string;
@@ -52,6 +54,10 @@ export interface MediaInfo {
     audioCodecs: string[];
     audioCompatible: boolean;
     bitmapSubtitles: string[];
+    /** 可转为 mov_text 保留的文本字幕编码。 */
+    textSubtitleCodecs: string[];
+    /** 图形字幕的全局流索引，供 -map 精确排除。 */
+    bitmapSubtitleIndexes: number[];
 }
 
 /** 查找来源：user=用户设置，bin=程序 bin 目录，path=系统 PATH。 */
@@ -76,6 +82,8 @@ export interface ToolDetection {
     sources: DetectSource[];
     /** 程序 bin 目录的绝对路径。 */
     binDir: string;
+    /** 用户是否手动指定过目录（即使该目录当前无效）。 */
+    hasUserSetting: boolean;
 }
 
 /** 持久化的用户设置。 */
@@ -97,6 +105,8 @@ export interface CommandPlan {
     commandLine: string;
     notes: string[];
     faststart: boolean;
+    /** 输出路径已有文件，开始转码前需二次确认。 */
+    outputExists: boolean;
 }
 
 /** 一次转码的全部选项，与 Go 侧 TranscodeOptions 对应。 */

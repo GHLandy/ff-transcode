@@ -194,6 +194,8 @@ type CommandPlan struct {
 	CommandLine string   `json:"commandLine"`
 	Notes       []string `json:"notes"`
 	Faststart   bool     `json:"faststart"`
+	// OutputExists 表示输出路径已有文件，前端在开始转码前需二次确认。
+	OutputExists bool `json:"outputExists"`
 }
 
 // TranscodeProgress 是转码过程中推送给前端的进度载荷。
@@ -322,7 +324,8 @@ func buildPlan(opts TranscodeOptions) (*CommandPlan, error) {
 	faststart := mp4Containers[outExt]
 
 	// 探测源文件，用于按需修正参数，并校验 profile / level 选择是否合理。
-	dropSubtitles := false
+	videoIndex := -1
+	var bitmapIndexes []int
 	if info, err := probeMedia(context.Background(), absSrc); err == nil {
 		if audioMode == "copy" && info.AudioTracks > 0 && !info.AudioCompatible {
 			audioMode = "aac"
@@ -330,11 +333,21 @@ func buildPlan(opts TranscodeOptions) (*CommandPlan, error) {
 				"音频编码 %s 无法 copy 进 MP4，已自动改为 AAC 128k。",
 				strings.ToUpper(strings.Join(info.AudioCodecs, ", "))))
 		}
-		if len(info.BitmapSubtitles) > 0 {
-			dropSubtitles = true
-			notes = append(notes, fmt.Sprintf(
-				"源文件含图形字幕（%s），MP4 无法承载，已加 -sn 丢弃。",
-				strings.ToUpper(strings.Join(info.BitmapSubtitles, ", "))))
+		if len(info.BitmapSubtitleIndexes) > 0 {
+			if info.Video != nil {
+				videoIndex = info.Video.Index
+			}
+			bitmapIndexes = info.BitmapSubtitleIndexes
+			if len(info.TextSubtitleCodecs) > 0 {
+				notes = append(notes, fmt.Sprintf(
+					"源文件含图形字幕（%s），已用 -map 精确排除这些字幕轨；其余 %d 条文本字幕（%s）将转为 mov_text 保留。",
+					strings.ToUpper(strings.Join(info.BitmapSubtitles, ", ")),
+					len(info.TextSubtitleCodecs), strings.ToUpper(strings.Join(info.TextSubtitleCodecs, ", "))))
+			} else {
+				notes = append(notes, fmt.Sprintf(
+					"源文件含图形字幕（%s），MP4 无法承载，已用 -map 排除这些字幕轨。",
+					strings.ToUpper(strings.Join(info.BitmapSubtitles, ", "))))
+			}
 		}
 		if info.Video != nil && info.Video.RecommendedLevel != "" {
 			recommended := levelValue(info.Video.RecommendedLevel)
@@ -351,7 +364,7 @@ func buildPlan(opts TranscodeOptions) (*CommandPlan, error) {
 		}
 	} else {
 		notes = append(notes, fmt.Sprintf(
-			"无法探测源文件（%s）：音频兼容检查、图形字幕处理与 Level 建议已停用，请自行确认参数；若音频编码与 MP4 不兼容，转码可能失败。", err))
+			"无法探测源文件（%s）：音频兼容检查、字幕精确排除与 Level 建议已停用，请自行确认参数；若音频编码与 MP4 不兼容或含图形字幕，转码可能失败。", err))
 	}
 
 	if profile != defaultProfile {
@@ -367,9 +380,21 @@ func buildPlan(opts TranscodeOptions) (*CommandPlan, error) {
 		"-hide_banner",
 		"-y",
 		"-i", absSrc,
-		"-c:v", "libx264",
-		"-profile:v", profile,
 	}
+	if len(bitmapIndexes) > 0 {
+		// 显式映射主视频流、首条音频流与全部字幕流，再用负映射剔除图形字幕，
+		// 让可保留的文本字幕仍可通过 -c:s mov_text 写入 MP4。
+		if videoIndex >= 0 {
+			args = append(args, "-map", "0:"+strconv.Itoa(videoIndex))
+		} else {
+			args = append(args, "-map", "0:v:0")
+		}
+		args = append(args, "-map", "0:a:0?", "-map", "0:s?")
+		for _, idx := range bitmapIndexes {
+			args = append(args, "-map", "-0:"+strconv.Itoa(idx))
+		}
+	}
+	args = append(args, "-c:v", "libx264", "-profile:v", profile)
 	if level != autoLevel {
 		args = append(args, "-level", level)
 	}
@@ -382,8 +407,8 @@ func buildPlan(opts TranscodeOptions) (*CommandPlan, error) {
 	} else {
 		args = append(args, "-c:a", "copy")
 	}
-	if dropSubtitles {
-		args = append(args, "-sn")
+	if len(bitmapIndexes) > 0 {
+		args = append(args, "-c:s", "mov_text")
 	}
 	if faststart {
 		args = append(args, "-movflags", "+faststart")
@@ -391,20 +416,26 @@ func buildPlan(opts TranscodeOptions) (*CommandPlan, error) {
 	// -progress pipe:1 提供机器可读的进度，-nostats 抑制 stderr 的刷屏统计。
 	args = append(args, "-progress", "pipe:1", "-nostats", outPath)
 
+	outputExists := false
+	if st, statErr := os.Stat(outPath); statErr == nil && !st.IsDir() {
+		outputExists = true
+	}
+
 	return &CommandPlan{
-		SourcePath:  absSrc,
-		SourceName:  filepath.Base(absSrc),
-		OutputDir:   absOutDir,
-		OutputPath:  outPath,
-		OutputName:  outName,
-		CRF:         crf,
-		Profile:     profile,
-		Level:       level,
-		AudioMode:   audioMode,
-		Args:        args,
-		CommandLine: "ffmpeg " + quoteArgs(args),
-		Notes:       notes,
-		Faststart:   faststart,
+		SourcePath:   absSrc,
+		SourceName:   filepath.Base(absSrc),
+		OutputDir:    absOutDir,
+		OutputPath:   outPath,
+		OutputName:   outName,
+		CRF:          crf,
+		Profile:      profile,
+		Level:        level,
+		AudioMode:    audioMode,
+		Args:         args,
+		CommandLine:  "ffmpeg " + quoteArgs(args),
+		Notes:        notes,
+		Faststart:    faststart,
+		OutputExists: outputExists,
 	}, nil
 }
 
@@ -435,7 +466,7 @@ func (a *App) StartTranscode(opts TranscodeOptions) (TranscodeSnapshot, error) {
 		return TranscodeSnapshot{}, err
 	}
 
-	ffmpegPath, _, _ := resolveToolSet(currentSettings())
+	ffmpegPath, _ := cachedToolPaths(currentSettings())
 	if ffmpegPath == "" {
 		a.jobMu.Unlock()
 		return TranscodeSnapshot{}, errors.New("未找到 ffmpeg，请安装 FFmpeg，或在设置中手动指定 ffmpeg 位置")

@@ -10,6 +10,7 @@ import type {
 
 interface GoApp {
     CheckTools(): Promise<ToolDetection>;
+    ConfirmOverwrite(path: string): Promise<boolean>;
     GetUserSettings(): Promise<AppSettings>;
     ChooseFFmpeg(): Promise<ToolDetection>;
     ClearFFmpegSetting(): Promise<ToolDetection>;
@@ -50,6 +51,11 @@ function app(): GoApp {
 
 export function checkTools(): Promise<ToolDetection> {
     return app().CheckTools();
+}
+
+/** 输出文件已存在时请用户确认是否覆盖。 */
+export function confirmOverwrite(path: string): Promise<boolean> {
+    return app().ConfirmOverwrite(path);
 }
 
 /** 读取当前用户设置。 */

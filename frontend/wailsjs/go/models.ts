@@ -54,6 +54,7 @@ export namespace main {
 	    commandLine: string;
 	    notes: string[];
 	    faststart: boolean;
+	    outputExists: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new CommandPlan(source);
@@ -74,6 +75,7 @@ export namespace main {
 	        this.commandLine = source["commandLine"];
 	        this.notes = source["notes"];
 	        this.faststart = source["faststart"];
+	        this.outputExists = source["outputExists"];
 	    }
 	}
 	export class DetectSource {
@@ -113,6 +115,7 @@ export namespace main {
 	    colorInfo: string;
 	    scanType: string;
 	    durationText: string;
+	    hdrHint: string;
 	    recommendedLevel: string;
 	    recommendedLevelHint: string;
 	
@@ -138,6 +141,7 @@ export namespace main {
 	        this.colorInfo = source["colorInfo"];
 	        this.scanType = source["scanType"];
 	        this.durationText = source["durationText"];
+	        this.hdrHint = source["hdrHint"];
 	        this.recommendedLevel = source["recommendedLevel"];
 	        this.recommendedLevelHint = source["recommendedLevelHint"];
 	    }
@@ -160,6 +164,8 @@ export namespace main {
 	    audioCodecs: string[];
 	    audioCompatible: boolean;
 	    bitmapSubtitles: string[];
+	    textSubtitleCodecs: string[];
+	    bitmapSubtitleIndexes: number[];
 	
 	    static createFrom(source: any = {}) {
 	        return new MediaInfo(source);
@@ -184,6 +190,8 @@ export namespace main {
 	        this.audioCodecs = source["audioCodecs"];
 	        this.audioCompatible = source["audioCompatible"];
 	        this.bitmapSubtitles = source["bitmapSubtitles"];
+	        this.textSubtitleCodecs = source["textSubtitleCodecs"];
+	        this.bitmapSubtitleIndexes = source["bitmapSubtitleIndexes"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -228,6 +236,7 @@ export namespace main {
 	    message: string;
 	    sources: DetectSource[];
 	    binDir: string;
+	    hasUserSetting: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new ToolDetection(source);
@@ -242,6 +251,7 @@ export namespace main {
 	        this.message = source["message"];
 	        this.sources = this.convertValues(source["sources"], DetectSource);
 	        this.binDir = source["binDir"];
+	        this.hasUserSetting = source["hasUserSetting"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

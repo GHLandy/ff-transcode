@@ -53,6 +53,7 @@ func loadSettings() AppSettings {
 	}
 	var s AppSettings
 	if err := json.Unmarshal(raw, &s); err != nil {
+		println("读取用户设置失败，将使用默认设置：", err.Error())
 		return AppSettings{}
 	}
 	s.FFmpegDir = strings.TrimSpace(s.FFmpegDir)
@@ -60,19 +61,38 @@ func loadSettings() AppSettings {
 }
 
 // saveSettings 把用户设置写入配置目录（目录不存在时自动创建）。
+// 先写同目录临时文件再原子替换，避免写入中途退出留下半个 JSON。
 func saveSettings(s AppSettings) error {
 	path := settingsFilePath()
 	if path == "" {
 		return os.ErrNotExist
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
 	raw, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, raw, 0o644)
+	tmp, err := os.CreateTemp(dir, ".settings-*.tmp")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	defer func() { _ = os.Remove(tmpName) }()
+	if _, err := tmp.Write(raw); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmpName, path)
 }
 
 // settingsFilePath 返回配置文件的绝对路径，结果会被缓存。
@@ -113,5 +133,10 @@ func setUserFFmpegDir(dir string) error {
 			dir = abs
 		}
 	}
-	return saveSettings(AppSettings{FFmpegDir: dir})
+	if err := saveSettings(AppSettings{FFmpegDir: dir}); err != nil {
+		return err
+	}
+	// 用户设置变化后，工具路径缓存必须立即失效。
+	invalidateToolPaths()
+	return nil
 }
