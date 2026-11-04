@@ -231,6 +231,9 @@ type TranscodeSnapshot struct {
 type transcodeJob struct {
 	mu sync.Mutex
 
+	// done 在 runJob 收尾（含删除半成品）后关闭，供应用退出时等待清理完成。
+	done chan struct{}
+
 	plan      CommandPlan
 	status    string
 	percent   float64
@@ -346,6 +349,9 @@ func buildPlan(opts TranscodeOptions) (*CommandPlan, error) {
 					info.Video.RecommendedLevel, info.Video.RecommendedLevel))
 			}
 		}
+	} else {
+		notes = append(notes, fmt.Sprintf(
+			"无法探测源文件（%s）：音频兼容检查、图形字幕处理与 Level 建议已停用，请自行确认参数；若音频编码与 MP4 不兼容，转码可能失败。", err))
 	}
 
 	if profile != defaultProfile {
@@ -440,10 +446,14 @@ func (a *App) StartTranscode(opts TranscodeOptions) (TranscodeSnapshot, error) {
 		return TranscodeSnapshot{}, fmt.Errorf("创建输出目录失败：%w", err)
 	}
 
-	// 总时长用于计算百分比与剩余时间；读取失败时进度以不确定模式显示。
+	// 总时长用于计算百分比与剩余时间；读取失败时进度以不确定模式显示，
+	// 同时在日志里写明原因，避免用户只看到「进行中」却无从判断。
 	duration := 0.0
+	durationProbeErr := error(nil)
 	if info, err := probeMedia(context.Background(), plan.SourcePath); err == nil {
 		duration = info.DurationSec
+	} else {
+		durationProbeErr = err
 	}
 
 	parent := a.ctx
@@ -456,6 +466,7 @@ func (a *App) StartTranscode(opts TranscodeOptions) (TranscodeSnapshot, error) {
 		plan:      *plan,
 		status:    "running",
 		duration:  duration,
+		done:      make(chan struct{}),
 		startedAt: time.Now(),
 		wailsCtx:  a.ctx,
 		cancel:    cancel,
@@ -463,6 +474,11 @@ func (a *App) StartTranscode(opts TranscodeOptions) (TranscodeSnapshot, error) {
 	}
 	a.job = job
 	a.jobMu.Unlock()
+
+	if durationProbeErr != nil {
+		job.appendLog(fmt.Sprintf(
+			"== 无法读取源文件时长（%s），进度将以「进行中」显示 ==", durationProbeErr))
+	}
 
 	go a.runJob(ctx, cancel, job, ffmpegPath)
 
@@ -494,6 +510,8 @@ func (a *App) GetTranscodeStatus() TranscodeSnapshot {
 }
 
 func (a *App) runJob(ctx context.Context, cancel context.CancelFunc, job *transcodeJob, ffmpegPath string) {
+	// done 最后关闭：确保退出时等到 ffmpeg 进程结束、半成品清理完毕。
+	defer close(job.done)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, ffmpegPath, job.plan.Args...)

@@ -294,16 +294,10 @@ export default function App() {
   );
 
   // ---------- 命令预览 ----------
-  const refreshPlan = useCallback(async () => {
+  // overrides 把本次事件刚修改、React 尚未渲染的值直接带入预览，避免
+  // stateRef.current 滞后一拍导致「命令预览」显示上一次的参数。
+  const refreshPlan = useCallback(async (overrides: Partial<TranscodeOptions> = {}) => {
     const cur = stateRef.current;
-    if (!cur.sourcePath) {
-      patch({
-        plan: null,
-        status: { text: '就绪', kind: 'idle' },
-      });
-      return;
-    }
-    const token = ++planToken.current;
     const opts: TranscodeOptions = {
       sourcePath: cur.sourcePath,
       outputDir: cur.outputDir,
@@ -311,7 +305,16 @@ export default function App() {
       audioMode: cur.audioAac ? 'aac' : 'copy',
       profile: cur.profile,
       level: cur.level,
+      ...overrides,
     };
+    if (!opts.sourcePath) {
+      patch({
+        plan: null,
+        status: { text: '就绪', kind: 'idle' },
+      });
+      return;
+    }
+    const token = ++planToken.current;
     try {
       const plan = await api.planTranscode(opts);
       if (token !== planToken.current) {
@@ -336,7 +339,7 @@ export default function App() {
   const selectLevel = useCallback(
     (level: string) => {
       patch({ level });
-      void refreshPlan();
+      void refreshPlan({ level });
     },
     [patch, refreshPlan],
   );
@@ -357,14 +360,20 @@ export default function App() {
         status: { text: '正在读取视频编码信息…', kind: 'idle' },
       }));
       const info = await api.probeMedia(selected);
+      const nextAudioAac =
+        info.audioTracks > 0 && !info.audioCompatible ? true : stateRef.current.audioAac;
       setState((prev) => ({
         ...prev,
         info,
         // 音频与 MP4 不兼容时后端会自动改用 AAC，界面同步勾选状态。
-        audioAac: info.audioTracks > 0 && !info.audioCompatible ? true : prev.audioAac,
+        audioAac: nextAudioAac,
         status: { text: '已选择文件，可以开始转码', kind: 'idle' },
       }));
-      await refreshPlan();
+      await refreshPlan({
+        sourcePath: selected,
+        outputDir: '',
+        audioMode: nextAudioAac ? 'aac' : 'copy',
+      });
     } catch (err) {
       setStatus(`读取失败：${errorText(err)}`, 'error');
     }
@@ -378,7 +387,7 @@ export default function App() {
         return;
       }
       patch({ outputDir: selected });
-      await refreshPlan();
+      await refreshPlan({ outputDir: selected });
     } catch (err) {
       setStatus(`选择输出目录失败：${errorText(err)}`, 'error');
     }
@@ -787,8 +796,9 @@ export default function App() {
                   if (state.running) {
                     return;
                   }
-                  setState((prev) => ({ ...prev, crf: Number(item.value) }));
-                  void refreshPlan();
+                  const crf = Number(item.value);
+                  setState((prev) => ({ ...prev, crf }));
+                  void refreshPlan({ crf });
                 }}
                 type="button"
               >
@@ -811,8 +821,9 @@ export default function App() {
                 value={state.profile}
                 disabled={state.running}
                 onChange={(e) => {
-                  setState((prev) => ({ ...prev, profile: e.target.value }));
-                  void refreshPlan();
+                  const profile = e.target.value;
+                  setState((prev) => ({ ...prev, profile }));
+                  void refreshPlan({ profile });
                 }}
               >
                 {state.presets?.profiles.map((p) => (
@@ -849,8 +860,9 @@ export default function App() {
               checked={state.audioAac}
               disabled={state.running}
               onChange={(e) => {
-                setState((prev) => ({ ...prev, audioAac: e.target.checked }));
-                void refreshPlan();
+                const audioAac = e.target.checked;
+                setState((prev) => ({ ...prev, audioAac }));
+                void refreshPlan({ audioMode: audioAac ? 'aac' : 'copy' });
               }}
             />
             <span>

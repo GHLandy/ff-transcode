@@ -2,13 +2,12 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
-
 	goruntime "runtime"
+	"strings"
+	"time"
 )
 
 // toolNames 是本应用依赖的两个可执行文件。
@@ -46,119 +45,95 @@ type ToolDetection struct {
 	BinDir string `json:"binDir"`
 }
 
+// toolPair 是同一目录下同时找到的 ffmpeg / ffprobe。
+type toolPair struct {
+	ffmpeg  string
+	ffprobe string
+}
+
 // resolveToolSet 按「用户设置 → 程序 bin 目录 → PATH」的优先级查找 ffmpeg / ffprobe，
-// 并返回完整路径与每一步的查找记录。
+// 并返回完整路径与每一步的查找记录。每个候选目录都必须同时具备两个可执行文件
+// 才算命中，避免把不同来源（可能是不同版本）的工具拼成一对。
 func resolveToolSet(settings AppSettings) (string, string, []DetectSource) {
 	sources := make([]DetectSource, 0, 3)
 
-	// 1. 用户设置
-	userSrc := DetectSource{Kind: sourceUser, Label: "用户设置"}
-	userDir := strings.TrimSpace(settings.FFmpegDir)
-	ffmpegPath, ffprobePath := "", ""
-	if userDir == "" {
-		userSrc.Detail = "-"
-		userSrc.Note = "未设置（跳过）"
-	} else {
-		userSrc.Detail = userDir
-		ffmpegPath = findInDir(userDir, toolFFmpeg)
-		ffprobePath = findInDir(userDir, toolFFprobe)
-		switch {
-		case ffmpegPath != "" && ffprobePath != "":
-			userSrc.Found = true
-			userSrc.Note = "已找到 ffmpeg 与 ffprobe"
-		case ffmpegPath == "" && ffprobePath == "":
-			userSrc.Note = "未找到 ffmpeg 与 ffprobe"
-		default:
-			userSrc.Note = "该目录缺少 " + missingToolName(ffmpegPath, ffprobePath)
-		}
+	userDirs := make([]string, 0, 1)
+	if dir := strings.TrimSpace(settings.FFmpegDir); dir != "" {
+		userDirs = append(userDirs, dir)
 	}
-	sources = append(sources, userSrc)
-	if ffmpegPath != "" && ffprobePath != "" {
-		return ffmpegPath, ffprobePath, sources
+	userDetail := "-"
+	if len(userDirs) > 0 {
+		userDetail = userDirs[0]
+	}
+	pair, src := scanSource(sourceUser, "用户设置", userDetail, userDirs, "未设置（跳过）")
+	sources = append(sources, src)
+	if src.Found {
+		return pair.ffmpeg, pair.ffprobe, sources
 	}
 
-	// 2. 程序目录下的 bin 目录
-	binSrc := DetectSource{Kind: sourceBin, Label: "程序 bin 目录"}
 	binDirs := bundledBinDirs()
-	binSrc.Detail = strings.Join(binDirs, " · ")
-	if len(binDirs) == 0 {
-		binSrc.Note = "未定位到程序目录"
-	} else {
-		foundFFmpeg, foundFFprobe := "", ""
-		for _, dir := range binDirs {
-			if foundFFmpeg == "" {
-				foundFFmpeg = findInDir(dir, toolFFmpeg)
-			}
-			if foundFFprobe == "" {
-				foundFFprobe = findInDir(dir, toolFFprobe)
-			}
-		}
-		if ffmpegPath == "" {
-			ffmpegPath = foundFFmpeg
-		}
-		if ffprobePath == "" {
-			ffprobePath = foundFFprobe
-		}
-		switch {
-		case foundFFmpeg != "" && foundFFprobe != "":
-			binSrc.Found = true
-			binSrc.Note = "已找到 ffmpeg 与 ffprobe"
-		case foundFFmpeg != "" || foundFFprobe != "":
-			binSrc.Note = "仅找到 " + presentToolName(foundFFmpeg, foundFFprobe)
-		default:
-			binSrc.Note = "未找到 ffmpeg 与 ffprobe"
-		}
+	binDetail := "-"
+	if len(binDirs) > 0 {
+		binDetail = strings.Join(binDirs, " · ")
 	}
-	sources = append(sources, binSrc)
-	if ffmpegPath != "" && ffprobePath != "" {
-		return ffmpegPath, ffprobePath, sources
+	pair, src = scanSource(sourceBin, "程序 bin 目录", binDetail, binDirs, "未定位到程序目录")
+	sources = append(sources, src)
+	if src.Found {
+		return pair.ffmpeg, pair.ffprobe, sources
 	}
 
-	// 3. 系统 PATH
-	pathSrc := DetectSource{Kind: sourcePath, Label: "PATH"}
-	pathSrc.Detail = "-"
-	ffmpegDir, ffprobeDir := "", ""
+	pair, src = scanSource(sourcePath, "PATH", "-", pathEnvDirs(), "PATH 为空")
+	sources = append(sources, src)
+	if src.Found {
+		return pair.ffmpeg, pair.ffprobe, sources
+	}
+
+	return "", "", sources
+}
+
+// scanSource 逐个检查一个来源的候选目录，只有同一目录中 ffmpeg 与 ffprobe
+// 都存在才返回这一对；否则记录不完整的原因，继续检查下一个目录。
+func scanSource(kind, label, detail string, dirs []string, emptyNote string) (toolPair, DetectSource) {
+	src := DetectSource{Kind: kind, Label: label, Detail: detail}
+	if len(dirs) == 0 {
+		src.Note = emptyNote
+		return toolPair{}, src
+	}
+
+	partial := ""
+	for _, dir := range dirs {
+		ffmpeg := findInDir(dir, toolFFmpeg)
+		ffprobe := findInDir(dir, toolFFprobe)
+		if ffmpeg != "" && ffprobe != "" {
+			src.Found = true
+			src.Detail = dir
+			src.Note = "已找到 ffmpeg 与 ffprobe"
+			return toolPair{ffmpeg: ffmpeg, ffprobe: ffprobe}, src
+		}
+		if partial == "" {
+			switch {
+			case ffmpeg != "":
+				partial = "仅找到 ffmpeg，该目录缺少 ffprobe（两者须配套）"
+			case ffprobe != "":
+				partial = "仅找到 ffprobe，该目录缺少 ffmpeg（两者须配套）"
+			default:
+				partial = "未找到 ffmpeg 与 ffprobe"
+			}
+		}
+	}
+	src.Note = partial
+	return toolPair{}, src
+}
+
+// pathEnvDirs 返回 PATH 中非空的目录列表。
+func pathEnvDirs() []string {
+	dirs := make([]string, 0, 8)
 	for _, dir := range filepath.SplitList(os.Getenv("PATH")) {
-		if strings.TrimSpace(dir) == "" {
-			continue
-		}
-		if ffmpegPath == "" {
-			if p := findInDir(dir, toolFFmpeg); p != "" {
-				ffmpegPath = p
-				ffmpegDir = dir
-			}
-		}
-		if ffprobePath == "" {
-			if p := findInDir(dir, toolFFprobe); p != "" {
-				ffprobePath = p
-				ffprobeDir = dir
-			}
+		if dir = strings.TrimSpace(dir); dir != "" {
+			dirs = append(dirs, dir)
 		}
 	}
-	switch {
-	case ffmpegPath != "" && ffprobePath != "":
-		// 找到了：直接显示所在目录，与「程序 bin 目录」风格一致。
-		pathSrc.Found = true
-		if ffmpegDir == ffprobeDir {
-			pathSrc.Detail = ffmpegDir
-		} else {
-			pathSrc.Detail = fmt.Sprintf("ffmpeg: %s；ffprobe: %s", ffmpegDir, ffprobeDir)
-		}
-		pathSrc.Note = "已找到 ffmpeg 与 ffprobe"
-	case ffmpegPath != "":
-		pathSrc.Found = true
-		pathSrc.Detail = ffmpegDir
-		pathSrc.Note = "仅找到 ffmpeg"
-	case ffprobePath != "":
-		pathSrc.Found = true
-		pathSrc.Detail = ffprobeDir
-		pathSrc.Note = "仅找到 ffprobe"
-	default:
-		pathSrc.Note = "未找到 ffmpeg 与 ffprobe"
-	}
-	sources = append(sources, pathSrc)
-
-	return ffmpegPath, ffprobePath, sources
+	return dirs
 }
 
 // detectTools 执行一次完整检测，并组装界面所需的全部信息。
@@ -172,19 +147,17 @@ func detectTools(settings AppSettings) ToolDetection {
 		BinDir:      primaryBinDir(),
 	}
 
-	ctx := context.Background()
+	// -version 也可能因用户指定的可执行文件异常而挂起；必须限制等待时间，
+	// 否则 CheckTools 永不返回，界面会一直停在「检测中…」。
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
 	if ffmpegPath != "" {
 		det.FFmpegVersion = toolVersion(ctx, ffmpegPath)
 	}
 
-	switch {
-	case ffmpegPath == "" && ffprobePath == "":
-		det.Message = "未找到 ffmpeg / ffprobe。需要在同一个目录中同时找到 ffmpeg 与 ffprobe。"
-	case ffmpegPath == "":
-		det.Message = "只找到 ffprobe，缺少 ffmpeg；两者需放在同一个目录。"
-	case ffprobePath == "":
-		det.Message = "只找到 ffmpeg，缺少 ffprobe；两者需放在同一个目录。"
-	default:
+	if ffmpegPath == "" {
+		det.Message = "未找到 ffmpeg / ffprobe。需要在同一个目录中同时找到这两个可执行文件。"
+	} else {
 		det.Available = true
 		det.Message = "FFmpeg 已就绪"
 	}
@@ -253,20 +226,4 @@ func primaryBinDir() string {
 		return filepath.Join(filepath.Dir(exe), "bin")
 	}
 	return "bin"
-}
-
-// missingToolName 返回缺失的工具名，用于提示。
-func missingToolName(ffmpegPath, _ string) string {
-	if ffmpegPath == "" {
-		return "ffmpeg"
-	}
-	return "ffprobe"
-}
-
-// presentToolName 返回已找到的工具名，用于提示。
-func presentToolName(ffmpegPath, _ string) string {
-	if ffmpegPath != "" {
-		return "ffmpeg"
-	}
-	return "ffprobe"
 }

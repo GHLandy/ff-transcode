@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -27,6 +28,25 @@ func NewApp() *App {
 // startup 由 Wails 在应用启动时调用，保存上下文供对话框与事件使用。
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+}
+
+// shutdown 由 Wails 在应用退出时同步调用：取消正在进行的转码并等待清理完成，
+// 避免 ffmpeg 变成孤儿进程继续写文件，或在磁盘上留下未完成的输出。
+func (a *App) shutdown(_ context.Context) {
+	a.jobMu.Lock()
+	job := a.job
+	a.jobMu.Unlock()
+	if job == nil || !job.isRunning() {
+		return
+	}
+	if err := a.CancelTranscode(); err != nil {
+		println("退出时取消转码失败：", err.Error())
+	}
+	select {
+	case <-job.done:
+	case <-time.After(10 * time.Second):
+		println("等待转码任务退出超时")
+	}
 }
 
 // baseContext 返回可用的上下文，避免 startup 之前调用时出现 nil。

@@ -115,7 +115,7 @@ func TestBuildPlanMatchesReferenceCommand(t *testing.T) {
 	}
 
 	for _, want := range []string{
-		"-c:v", "libx264", "-profile:v", "main", "-level", "4.0",
+		"-c:v", "libx264", "-profile:v", defaultProfile, "-level", defaultLevel,
 		"-pix_fmt", "yuv420p", "-crf", "18", "-c:a", "copy",
 		"-movflags", "+faststart",
 	} {
@@ -450,6 +450,55 @@ func TestResolveToolSetPrefersUserSetting(t *testing.T) {
 	}
 	if len(sources) == 0 || sources[0].Kind != sourceUser || !sources[0].Found {
 		t.Errorf("首条查找来源应为已命中的用户设置，实际为 %+v", sources)
+	}
+}
+
+// TestResolveToolSetDoesNotMixDirectories 验证不会把不同目录的 ffmpeg / ffprobe
+// 拼成一对（版本可能不配套）：用户设置只有 ffmpeg、PATH 只有 ffprobe 时应判定为未找到。
+func TestResolveToolSetDoesNotMixDirectories(t *testing.T) {
+	ffmpegOnly := t.TempDir()
+	ffprobeOnly := t.TempDir()
+	writeStubTool(t, ffmpegOnly, toolFFmpeg)
+	writeStubTool(t, ffprobeOnly, toolFFprobe)
+	t.Setenv("PATH", ffprobeOnly)
+
+	ffmpeg, ffprobe, sources := resolveToolSet(AppSettings{FFmpegDir: ffmpegOnly})
+	if ffmpeg != "" || ffprobe != "" {
+		t.Fatalf("不应跨目录拼凑工具，实际 ffmpeg=%q ffprobe=%q", ffmpeg, ffprobe)
+	}
+	if len(sources) != 3 || sources[0].Found || sources[2].Found {
+		t.Errorf("不完整的来源不应判定为命中，实际 %+v", sources)
+	}
+}
+
+// TestResolveToolSetFallsBackToCompletePathDir 验证用户设置不完整时，
+// 仍能回退到 PATH 中配套齐全的目录。
+func TestResolveToolSetFallsBackToCompletePathDir(t *testing.T) {
+	ffmpegOnly := t.TempDir()
+	complete := t.TempDir()
+	writeStubTool(t, ffmpegOnly, toolFFmpeg)
+	writeStubTool(t, complete, toolFFmpeg)
+	writeStubTool(t, complete, toolFFprobe)
+	t.Setenv("PATH", complete)
+
+	ffmpeg, ffprobe, sources := resolveToolSet(AppSettings{FFmpegDir: ffmpegOnly})
+	if ffmpeg == "" || ffprobe == "" {
+		t.Fatalf("应回退到 PATH 中配套齐全的目录，实际 ffmpeg=%q ffprobe=%q", ffmpeg, ffprobe)
+	}
+	if filepath.Dir(ffmpeg) != filepath.Dir(ffprobe) {
+		t.Errorf("ffmpeg 与 ffprobe 应来自同一目录：%q / %q", ffmpeg, ffprobe)
+	}
+	if !sources[2].Found {
+		t.Errorf("PATH 来源应判定为命中，实际 %+v", sources)
+	}
+}
+
+// writeStubTool 在目录中写入占位可执行文件，供工具定位测试使用。
+func writeStubTool(t *testing.T, dir, name string) {
+	t.Helper()
+	path := filepath.Join(dir, exeNames(name)[0])
+	if err := os.WriteFile(path, []byte("stub"), 0o644); err != nil {
+		t.Fatalf("写入占位文件失败：%v", err)
 	}
 }
 
